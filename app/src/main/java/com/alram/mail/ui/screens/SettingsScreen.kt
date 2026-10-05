@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alram.mail.ui.keepAll
 import com.alram.mail.BuildConfig
 import com.alram.mail.core.BodyMode
 import com.alram.mail.core.DeliveryMode
@@ -322,7 +323,7 @@ private fun RecipientsDialog(initial: String, onSave: (String) -> Unit, onDismis
         text = {
             Column {
                 Text(
-                    "한 줄에 하나씩 적어 주세요. 비워 두면 내 Gmail 주소로 보내요.",
+                    "한 줄에 하나씩 적어 주세요. 비워 두면 내 Gmail 주소로 보내요.".keepAll(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

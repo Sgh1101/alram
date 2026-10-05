@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.alram.mail.ui.keepAll
 import com.alram.mail.ui.theme.AlramTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -103,7 +104,7 @@ fun ScreenTitle(
             Text(title, style = MaterialTheme.typography.headlineMedium)
             if (subtitle != null) {
                 Text(
-                    subtitle,
+                    subtitle.keepAll(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -251,7 +252,7 @@ fun SettingRow(
             Text(title, style = MaterialTheme.typography.bodyLarge, color = titleColor)
             if (subtitle != null) {
                 Text(
-                    subtitle,
+                    subtitle.keepAll(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -642,7 +643,7 @@ fun Banner(
             modifier = Modifier.size(20.dp),
         )
         Text(
-            text,
+            text.keepAll(),
             style = MaterialTheme.typography.bodyMedium,
             color = fg,
             modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 10.dp),
@@ -673,10 +674,10 @@ fun EmptyState(
             Icon(icon, contentDescription = null, tint = AlramTheme.colors.iconTint, modifier = Modifier.size(26.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text(title, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+        Text(title.keepAll(), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
         Spacer(Modifier.height(4.dp))
         Text(
-            body,
+            body.keepAll(),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -703,7 +704,7 @@ fun <T> ChoiceDialog(
             Column {
                 if (message != null) {
                     Text(
-                        message,
+                        message.keepAll(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp),
@@ -782,7 +783,7 @@ fun ConfirmDialog(
         onDismissRequest = onDismiss,
         containerColor = AlramTheme.colors.card,
         title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        text = { Text(message.keepAll(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         confirmButton = {
             TextButton(onClick = { onConfirm(); onDismiss() }) {
                 Text(
@@ -806,7 +807,7 @@ fun HSpace(width: Dp) = Spacer(Modifier.width(width))
 @Composable
 fun Hint(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
+        text.keepAll(),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(horizontal = 16.dp, vertical = 4.dp),

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alram.mail.ui.keepAll
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.mail.MailException
 import com.alram.mail.ui.LocalContainer
@@ -117,7 +118,7 @@ fun GmailScreen(onBack: () -> Unit) {
                 .padding(bottom = 32.dp),
         ) {
             Text(
-                "알림을 보낼 Gmail 계정과 앱 비밀번호를 입력해 주세요. 비밀번호는 이 폰 안에서만 암호화해 보관하고, Gmail 서버 말고는 어디에도 보내지 않아요.",
+                "알림을 보낼 Gmail 계정과 앱 비밀번호를 입력해 주세요. 비밀번호는 이 폰 안에서만 암호화해 보관하고, Gmail 서버 말고는 어디에도 보내지 않아요.".keepAll(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
@@ -159,7 +160,7 @@ fun GmailScreen(onBack: () -> Unit) {
                             modifier = Modifier.size(18.dp),
                         )
                         Text(
-                            it,
+                            it.keepAll(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = tint,
                             modifier = Modifier.padding(start = 6.dp),
@@ -195,7 +196,7 @@ fun GmailScreen(onBack: () -> Unit) {
                 }
             }
             Text(
-                "회사·학교 계정은 관리자가 앱 비밀번호를 막아 두었을 수 있어요.",
+                "회사·학교 계정은 관리자가 앱 비밀번호를 막아 두었을 수 있어요.".keepAll(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 28.dp, end = 20.dp, top = 10.dp),
@@ -230,7 +231,7 @@ private fun StepLine(number: Int, text: String) {
             Text("$number", style = MaterialTheme.typography.labelSmall, color = AlramTheme.colors.iconTint)
         }
         Text(
-            text,
+            text.keepAll(),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(start = 12.dp, top = 1.dp),
         )

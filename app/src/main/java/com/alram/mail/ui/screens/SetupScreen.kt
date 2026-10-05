@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alram.mail.ui.keepAll
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.ui.LocalContainer
 import com.alram.mail.ui.components.GroupCard
@@ -84,7 +85,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             Text("시작하기 전에", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "네 가지만 해 두면 알림이 끊기지 않고 메일로 도착해요.",
+                "네 가지만 해 두면 알림이 끊기지 않고 메일로 도착해요.".keepAll(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -117,7 +118,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             extra = if (!system.listenerEnabled) {
                 {
                     Text(
-                        "스위치가 회색이거나 \"제한된 설정\" 안내가 나오면 앱 정보 → 오른쪽 위 ⋮ → 제한된 설정 허용 후 다시 해 보세요. 직접 설치한 앱이라 나오는 안내예요.",
+                        "스위치가 회색이거나 \"제한된 설정\" 안내가 나오면 앱 정보 → 오른쪽 위 ⋮ → 제한된 설정 허용 후 다시 해 보세요. 직접 설치한 앱이라 나오는 안내예요.".keepAll(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -146,7 +147,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             extra = if (!system.batteryUnrestricted) {
                 {
                     Text(
-                        "삼성 폰은 추가로 설정 → 배터리 → 백그라운드 사용 제한 → \"절전 예외 앱\"에 Alram Mail을 넣어 주세요.",
+                        "삼성 폰은 추가로 설정 → 배터리 → 백그라운드 사용 제한 → \"절전 예외 앱\"에 Alram Mail을 넣어 주세요.".keepAll(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -219,7 +220,7 @@ private fun Step(
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    body,
+                    body.keepAll(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),

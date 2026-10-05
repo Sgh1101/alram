@@ -126,3 +126,27 @@ fun openUrl(context: Context, url: String) {
 fun ProvideContainer(container: AppContainer, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalContainer provides container, content = content)
 }
+
+private fun isHangul(c: Char): Boolean =
+    c in '가'..'힣' || c in 'ᄀ'..'ᇿ' || c in '㄰'..'㆏'
+
+private fun isAsciiAlnum(c: Char): Boolean = c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9'
+
+/**
+ * 한글 문장이 단어 중간에서 줄바꿈되지 않게(CSS 의 keep-all) 한 단어 안의 글자 사이에
+ * 보이지 않는 WORD JOINER(U+2060)를 넣는다. 안드로이드 버전·언어 설정과 상관없이 띄어쓰기에서만 줄이 바뀐다.
+ * 이모지 등 다른 문자에는 손대지 않는다.
+ */
+fun String.keepAll(): String {
+    if (length < 2) return this
+    val sb = StringBuilder(length + length / 2)
+    for (i in indices) {
+        val c = this[i]
+        sb.append(c)
+        if (i == lastIndex) break
+        val n = this[i + 1]
+        val joinable = (isHangul(c) || isAsciiAlnum(c)) && (isHangul(n) || isAsciiAlnum(n))
+        if (joinable && (isHangul(c) || isHangul(n))) sb.append('⁠')
+    }
+    return sb.toString()
+}
