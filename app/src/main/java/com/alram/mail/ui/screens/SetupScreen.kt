@@ -38,6 +38,7 @@ import com.alram.mail.ui.LocalContainer
 import com.alram.mail.ui.components.GroupCard
 import com.alram.mail.ui.components.PrimaryButton
 import com.alram.mail.ui.components.SecondaryButton
+import com.alram.mail.ui.components.TextLink
 import com.alram.mail.ui.openAppDetails
 import com.alram.mail.ui.openNotificationListenerSettings
 import com.alram.mail.ui.rememberSystemState
@@ -228,7 +229,13 @@ private fun Step(
                     !done -> SecondaryButton(actionLabel, onClick = onAction, modifier = Modifier.padding(top = 4.dp))
                     canRedo -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("완료", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        TextButton(onClick = onAction) { Text(actionLabel, style = MaterialTheme.typography.labelMedium) }
+                        Text(
+                            "·",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
+                        TextLink(actionLabel, onClick = onAction, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     else -> Text("완료", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }

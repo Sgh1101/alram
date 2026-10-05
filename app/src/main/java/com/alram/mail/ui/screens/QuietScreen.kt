@@ -24,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,8 +69,9 @@ fun QuietScreen(onBack: () -> Unit) {
                 )
             }
 
+            val detailAlpha = if (q.enabled) 1f else 0.45f
             SectionHeader("시간")
-            GroupCard {
+            GroupCard(Modifier.alpha(detailAlpha)) {
                 SettingRow("시작", value = formatMinute(q.startMinute), onClick = { dialog = "start" })
                 RowDivider()
                 SettingRow("끝", value = formatMinute(q.endMinute), onClick = { dialog = "end" })
@@ -82,7 +84,7 @@ fun QuietScreen(onBack: () -> Unit) {
             }
 
             SectionHeader("요일")
-            GroupCard {
+            GroupCard(Modifier.alpha(detailAlpha)) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,

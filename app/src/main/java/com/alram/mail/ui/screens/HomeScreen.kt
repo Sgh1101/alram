@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,6 +61,7 @@ import com.alram.mail.ui.components.RowDivider
 import com.alram.mail.ui.components.SecondaryButton
 import com.alram.mail.ui.components.SectionHeader
 import com.alram.mail.ui.components.SettingRow
+import com.alram.mail.ui.components.TextLink
 import com.alram.mail.ui.components.groupItem
 import com.alram.mail.ui.containerViewModel
 import com.alram.mail.ui.formatMinute
@@ -209,9 +209,7 @@ fun HomeScreen(onOpenSetup: () -> Unit, onOpenHistory: () -> Unit) {
             }
         }
         item {
-            SectionHeader("최근 알림") {
-                TextButton(onClick = onOpenHistory) { Text("전체 보기", style = MaterialTheme.typography.labelMedium) }
-            }
+            SectionHeader("최근 알림") { TextLink("전체 보기", onClick = onOpenHistory) }
         }
         if (recent.isEmpty()) {
             item {

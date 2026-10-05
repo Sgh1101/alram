@@ -327,7 +327,7 @@ fun AppSwitch(
     } else {
         SwitchDefaults.colors(
             checkedThumbColor = Color.White,
-            checkedTrackColor = MaterialTheme.colorScheme.primary,
+            checkedTrackColor = AlramTheme.colors.switchOn,
             checkedBorderColor = Color.Transparent,
             uncheckedThumbColor = Color.White,
             uncheckedTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
@@ -389,6 +389,26 @@ fun SecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge, fontSize = 15.sp)
     }
+}
+
+/** 줄 높이를 늘리지 않는 작은 텍스트 버튼. */
+@Composable
+fun TextLink(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
 }
 
 /** 작은 알약 모양 선택 버튼(필터·선택지). */

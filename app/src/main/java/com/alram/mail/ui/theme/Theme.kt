@@ -16,6 +16,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alram.mail.R
@@ -103,6 +104,8 @@ data class AlramColors(
     /** 세그먼트 탭 바탕/선택 */
     val segmentTrack: Color,
     val segmentThumb: Color,
+    /** 켜진 스위치 트랙 (흰 손잡이와 대비가 충분한 블루) */
+    val switchOn: Color,
 )
 
 private val LightExtra = AlramColors(
@@ -116,6 +119,7 @@ private val LightExtra = AlramColors(
     badge = Color(0xFFFF6B57),
     segmentTrack = Color(0xFFE6E9F0),
     segmentThumb = Color.White,
+    switchOn = Color(0xFF2E5FE8),
 )
 
 private val DarkExtra = AlramColors(
@@ -129,6 +133,7 @@ private val DarkExtra = AlramColors(
     badge = Color(0xFFFF7A68),
     segmentTrack = Color(0xFF11151D),
     segmentThumb = Color(0xFF262D3B),
+    switchOn = Color(0xFF3D6DF2),
 )
 
 val LocalAlramColors = staticCompositionLocalOf { LightExtra }
@@ -145,20 +150,28 @@ val Pretendard = FontFamily(
     Font(R.font.pretendard_bold, FontWeight.Bold),
 )
 
-private fun style(size: Int, line: Int, weight: FontWeight, tracking: Double = 0.0) = TextStyle(
+// 한글이 단어 중간에서 끊기지 않도록 어절(구) 단위로 줄을 바꾼다. (Android 13+ 에서 적용)
+private fun style(
+    size: Int,
+    line: Int,
+    weight: FontWeight,
+    tracking: Double = 0.0,
+    lineBreak: LineBreak = LineBreak.Paragraph,
+) = TextStyle(
     fontFamily = Pretendard,
     fontWeight = weight,
     fontSize = size.sp,
     lineHeight = line.sp,
     letterSpacing = tracking.sp,
+    lineBreak = lineBreak,
 )
 
 private val AppTypography = Typography(
-    displaySmall = style(34, 42, FontWeight.Bold, -0.8),
-    headlineLarge = style(30, 38, FontWeight.Bold, -0.6),
-    headlineMedium = style(26, 34, FontWeight.Bold, -0.5),
-    headlineSmall = style(22, 30, FontWeight.Bold, -0.4),
-    titleLarge = style(20, 28, FontWeight.Bold, -0.3),
+    displaySmall = style(34, 42, FontWeight.Bold, -0.8, LineBreak.Heading),
+    headlineLarge = style(30, 38, FontWeight.Bold, -0.6, LineBreak.Heading),
+    headlineMedium = style(26, 34, FontWeight.Bold, -0.5, LineBreak.Heading),
+    headlineSmall = style(22, 30, FontWeight.Bold, -0.4, LineBreak.Heading),
+    titleLarge = style(20, 28, FontWeight.Bold, -0.3, LineBreak.Heading),
     titleMedium = style(17, 24, FontWeight.SemiBold, -0.2),
     titleSmall = style(15, 21, FontWeight.SemiBold, -0.1),
     bodyLarge = style(16, 24, FontWeight.Normal, -0.1),
