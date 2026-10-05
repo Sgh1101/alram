@@ -1,16 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <group
-        android:pivotX="12"
-        android:pivotY="12"
-        android:scaleX="0.5"
-        android:scaleY="0.5">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2zM18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z" />
-    </group>
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 말풍선 모양 봉투: 알림이 메일이 된다 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M39.92,38.28 H68.08 A7.04,7.04 0 0 1 75.12,45.32 V60.28 A7.04,7.04 0 0 1 68.08,67.32 H51.36 L43,74.8 Q41.68,75.94 41.68,74.18 V67.32 H39.92 A7.04,7.04 0 0 1 32.88,60.28 V45.32 A7.04,7.04 0 0 1 39.92,38.28 Z" />
+    <path
+        android:pathData="M38.16,44.88 L54,56.32 L69.84,44.88"
+        android:strokeColor="#FF2F63F0"
+        android:strokeWidth="3.34"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- 배지 둘레를 배경과 같은 그라데이션으로 칠해 모서리를 파낸 것처럼 보이게 한다 -->
+    <path android:pathData="M62.36,40.48 A9.68,9.68 0 1 1 81.72,40.48 A9.68,9.68 0 1 1 62.36,40.48 Z">
+        <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="0"
+                    android:startY="0"
+                    android:endX="108"
+                    android:endY="108">
+                    <item android:offset="0" android:color="#FF4C86FF" />
+                    <item android:offset="1" android:color="#FF1E46D8" />
+                </gradient>
+            </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFFF6B57"
+        android:pathData="M65.44,40.48 A6.6,6.6 0 1 1 78.64,40.48 A6.6,6.6 0 1 1 65.44,40.48 Z" />
 </vector>

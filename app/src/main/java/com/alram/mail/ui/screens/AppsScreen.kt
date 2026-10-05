@@ -2,30 +2,27 @@ package com.alram.mail.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,9 +40,15 @@ import com.alram.mail.core.DeliveryMode
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.data.AppRuleEntity
 import com.alram.mail.ui.components.AppIcon
+import com.alram.mail.ui.components.AppSwitch
+import com.alram.mail.ui.components.ChoicePill
 import com.alram.mail.ui.components.ConfirmDialog
-import com.alram.mail.ui.components.Divider
 import com.alram.mail.ui.components.EmptyState
+import com.alram.mail.ui.components.GroupCard
+import com.alram.mail.ui.components.RowDivider
+import com.alram.mail.ui.components.ScreenTitle
+import com.alram.mail.ui.components.SearchField
+import com.alram.mail.ui.components.groupItem
 import com.alram.mail.ui.containerViewModel
 import com.alram.mail.ui.formatTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +89,10 @@ class AppsVm(private val c: AppContainer) : ViewModel() {
 
     val defaultMode = prefs
 
+    val enabledCount = combine(c.db.appRules().observeAll(), prefs) { rules, p ->
+        rules.count { it.enabled ?: p.core.newAppsEnabled }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     init {
         viewModelScope.launch { c.catalog.sync() }
     }
@@ -112,57 +119,54 @@ fun AppsScreen(onOpenApp: (String) -> Unit) {
     val query by vm.query.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     val prefs by vm.defaultMode.collectAsStateWithLifecycle()
+    val enabledCount by vm.enabledCount.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
     var confirmAll by remember { mutableStateOf<Boolean?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.statusBarsPadding().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("앱", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "켜 둔 앱의 알림만 메일로 전달돼요",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "더보기") }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("모든 앱 켜기") }, onClick = { menu = false; confirmAll = true })
-                DropdownMenuItem(text = { Text("모든 앱 끄기") }, onClick = { menu = false; confirmAll = false })
-                DropdownMenuItem(text = { Text("시스템 앱 모두 끄기") }, onClick = { menu = false; vm.setSystem(false) })
+        ScreenTitle("앱", subtitle = "${enabledCount}개 앱의 알림을 메일로 보내고 있어요") {
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "더보기") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("모든 앱 켜기") }, onClick = { menu = false; confirmAll = true })
+                    DropdownMenuItem(text = { Text("모든 앱 끄기") }, onClick = { menu = false; confirmAll = false })
+                    DropdownMenuItem(text = { Text("시스템 앱 모두 끄기") }, onClick = { menu = false; vm.setSystem(false) })
+                }
             }
         }
 
-        OutlinedTextField(
+        SearchField(
             value = query,
             onValueChange = { vm.query.value = it },
-            singleLine = true,
-            placeholder = { Text("앱 이름 검색") },
-            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            shape = MaterialTheme.shapes.large,
-            keyboardOptions = KeyboardOptions.Default,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = "앱 이름 검색",
+            modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        androidx.compose.foundation.lazy.LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(AppFilter.entries.toList()) { f ->
-                FilterChip(selected = filter == f, onClick = { vm.filter.value = f }, label = { Text(f.label) })
+                ChoicePill(f.label, selected = filter == f, onClick = { vm.filter.value = f })
             }
         }
 
         if (rows.isEmpty()) {
-            EmptyState("표시할 앱이 없어요", "검색어나 필터를 바꿔 보세요.")
+            GroupCard {
+                EmptyState("표시할 앱이 없어요", "검색어나 필터를 바꿔 보세요.", icon = Icons.Rounded.Apps)
+            }
         } else {
-            LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-                items(rows, key = { it.rule.packageName }) { row ->
-                    AppListItem(row, prefs, onOpen = { onOpenApp(row.rule.packageName) }, onToggle = { vm.setEnabled(row.rule.packageName, it) })
-                    Divider(Modifier.padding(start = 76.dp))
+            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                itemsIndexed(rows, key = { _, row -> row.rule.packageName }) { i, row ->
+                    Column(Modifier.groupItem(i, rows.size)) {
+                        AppListItem(
+                            row,
+                            prefs,
+                            onOpen = { onOpenApp(row.rule.packageName) },
+                            onToggle = { vm.setEnabled(row.rule.packageName, it) },
+                        )
+                        if (i < rows.size - 1) RowDivider(inset = 68.dp)
+                    }
                 }
             }
         }
@@ -190,35 +194,39 @@ fun modeText(mode: DeliveryMode?, prefs: AppPrefs): String {
     }
 }
 
+private fun keywordCount(raw: String) = raw.lines().count { it.isNotBlank() }
+
 @Composable
 private fun AppListItem(row: AppRow, prefs: AppPrefs, onOpen: () -> Unit, onToggle: (Boolean) -> Unit) {
     val r = row.rule
     val details = buildList {
-        if (row.enabled) add(modeText(r.mode?.let { runCatching { DeliveryMode.valueOf(it) }.getOrNull() }, prefs))
+        if (row.enabled) add(modeText(r.mode?.let { runCatching { DeliveryMode.valueOf(it) }.getOrNull() }, prefs)) else add("꺼짐")
         if (r.bodyMode == BodyMode.TITLE_ONLY.name) add("제목만")
         if (r.maskOtp == true) add("인증번호 가림")
-        val kw = r.includeKeywords.count { it == '\n' } + (if (r.includeKeywords.isNotBlank()) 1 else 0) +
-            r.excludeKeywords.count { it == '\n' } + (if (r.excludeKeywords.isNotBlank()) 1 else 0)
-        if (kw > 0) add("키워드 ${kw}")
+        val kw = keywordCount(r.includeKeywords) + keywordCount(r.excludeKeywords)
+        if (kw > 0) add("키워드 $kw")
         if (r.recipients.isNotBlank()) add("별도 수신")
-        if (r.seenCount > 0) add("마지막 ${formatTime(r.lastSeenAt)}")
+        if (r.seenCount > 0) add("최근 ${formatTime(r.lastSeenAt)}")
     }.joinToString(" · ")
 
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppIcon(r.packageName, r.label, size = 40.dp)
-        Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-            Text(r.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(r.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                details.ifBlank { "꺼짐" },
+                details,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (row.enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Switch(checked = row.enabled, onCheckedChange = onToggle)
+        AppSwitch(checked = row.enabled, onCheckedChange = onToggle)
     }
 }

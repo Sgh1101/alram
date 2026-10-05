@@ -5,11 +5,11 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -20,18 +20,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,10 +35,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.ui.LocalContainer
+import com.alram.mail.ui.components.GroupCard
+import com.alram.mail.ui.components.PrimaryButton
+import com.alram.mail.ui.components.SecondaryButton
 import com.alram.mail.ui.openAppDetails
 import com.alram.mail.ui.openNotificationListenerSettings
 import com.alram.mail.ui.rememberSystemState
 import com.alram.mail.ui.requestIgnoreBatteryOptimizations
+import com.alram.mail.ui.theme.AlramTheme
 import kotlinx.coroutines.launch
 
 @Composable
@@ -76,35 +74,37 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             .fillMaxWidth()
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(vertical = 16.dp)
             .navigationBarsPadding(),
     ) {
-        Text("시작하기 전에", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "네 가지만 해 두면 알림이 끊기지 않고 메일로 도착해요.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
-        LinearProgressIndicator(
-            progress = { doneCount / 4f },
-            modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-        )
-        Text(
-            "$doneCount / 4 완료",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
-        )
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            BrandMark(44.dp)
+            Spacer(Modifier.height(18.dp))
+            Text("시작하기 전에", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "네 가지만 해 두면 알림이 끊기지 않고 메일로 도착해요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(18.dp))
+            ProgressBar(doneCount / 4f)
+            Text(
+                "$doneCount / 4 완료",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 14.dp),
+            )
+        }
 
         Step(
             number = 1,
             title = "Gmail 연결",
-            body = "알림을 받을 Gmail 주소와 앱 비밀번호를 등록해요.",
+            body = "알림을 보낼 Gmail 주소와 앱 비밀번호를 등록해요.",
             done = gmailDone,
             actionLabel = if (gmailDone) "다시 설정" else "연결하기",
             onAction = onOpenGmail,
+            canRedo = true,
         )
         Step(
             number = 2,
@@ -116,7 +116,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             extra = if (!system.listenerEnabled) {
                 {
                     Text(
-                        "스위치가 회색이거나 \"제한된 설정\" 안내가 나오면: 앱 정보 → 오른쪽 위 ⋮ → 제한된 설정 허용 후 다시 시도하세요. (직접 설치한 앱이라 나타나는 안내예요)",
+                        "스위치가 회색이거나 \"제한된 설정\" 안내가 나오면 앱 정보 → 오른쪽 위 ⋮ → 제한된 설정 허용 후 다시 해 보세요. 직접 설치한 앱이라 나오는 안내예요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -127,7 +127,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
         Step(
             number = 3,
             title = "알림 표시 허용",
-            body = "오류가 생겼을 때 알려 드리는 용도예요.",
+            body = "문제가 생겼을 때 알려 드리는 용도예요.",
             done = system.notificationsAllowed,
             actionLabel = "허용하기",
             onAction = {
@@ -145,7 +145,7 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             extra = if (!system.batteryUnrestricted) {
                 {
                     Text(
-                        "삼성 폰은 추가로: 설정 → 배터리 → 백그라운드 사용 제한 → \"절전 예외 앱\"에 Alram Mail을 넣어 주세요.",
+                        "삼성 폰은 추가로 설정 → 배터리 → 백그라운드 사용 제한 → \"절전 예외 앱\"에 Alram Mail을 넣어 주세요.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -153,14 +153,34 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
             } else null,
         )
 
-        Spacer(Modifier.height(24.dp))
-        Button(
+        Spacer(Modifier.height(20.dp))
+        PrimaryButton(
+            text = if (doneCount == 4) "시작하기" else "나중에 마저 할게요",
             onClick = {
                 scope.launch { c.settings.update { it.copy(setupSeen = true) } }
                 onDone()
             },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (doneCount == 4) "시작하기" else "나중에 마저 하기") }
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun ProgressBar(fraction: Float) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+        )
     }
 }
 
@@ -173,29 +193,45 @@ private fun Step(
     actionLabel: String,
     onAction: () -> Unit,
     extra: (@Composable () -> Unit)? = null,
+    canRedo: Boolean = false,
 ) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-        Box(
-            Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (done) {
-                Icon(Icons.Outlined.Check, contentDescription = "완료", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
-            } else {
-                Text("$number", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    GroupCard(Modifier.padding(bottom = 10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp)) {
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(if (done) MaterialTheme.colorScheme.primary else AlramTheme.colors.iconTile),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (done) {
+                    androidx.compose.material3.Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = "완료",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                } else {
+                    Text("$number", style = MaterialTheme.typography.labelMedium, color = AlramTheme.colors.iconTint)
+                }
             }
-        }
-        Column(Modifier.weight(1f).padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            extra?.invoke()
-            if (done) {
-                TextButton(onClick = onAction, modifier = Modifier.padding(start = 0.dp)) { Text(actionLabel) }
-            } else {
-                FilledTonalButton(onClick = onAction, modifier = Modifier.padding(top = 4.dp)) { Text(actionLabel) }
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+                )
+                extra?.invoke()
+                when {
+                    !done -> SecondaryButton(actionLabel, onClick = onAction, modifier = Modifier.padding(top = 4.dp))
+                    canRedo -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("완료", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = onAction) { Text(actionLabel, style = MaterialTheme.typography.labelMedium) }
+                    }
+                    else -> Text("완료", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }

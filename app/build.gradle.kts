@@ -48,6 +48,13 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // 스크린샷 테스트(Robolectric)에서 폰트·벡터 리소스를 쓰기 위해 필요
+            isIncludeAndroidResources = true
+        }
+    }
+
     packaging {
         resources {
             excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST")
@@ -97,4 +104,20 @@ dependencies {
 
     implementation("com.sun.mail:android-mail:1.6.7")
     implementation("com.sun.mail:android-activation:1.6.7")
+
+    // 화면 스크린샷 테스트 (CI 에서 디자인 확인용)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.39.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.39.0")
+    testImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+tasks.withType<Test>().configureEach {
+    // Roborazzi: 이미지를 비교하지 않고 그대로 저장한다.
+    systemProperty("roborazzi.test.record", "true")
+    maxHeapSize = "3g"
 }

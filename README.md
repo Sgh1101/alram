@@ -40,3 +40,9 @@ GitHub Actions 가 푸시마다 APK 를 빌드해서 `latest-debug` 릴리스에
 1. Google 계정에서 2단계 인증을 켜고 [앱 비밀번호](https://myaccount.google.com/apppasswords)를 만듭니다.
 2. 앱을 설치하고 설정 점검 화면의 4단계(Gmail 연결 / 알림 접근 / 알림 표시 / 배터리 제한 해제)를 따라 합니다.
 3. 삼성 폰은 설정 → 배터리 → 백그라운드 사용 제한 → 절전 예외 앱에 Alram Mail 을 추가하세요.
+
+## 디자인
+
+- 블루 팔레트(라이트/다크), 그룹 카드형 리스트, 하단 탭 4개(홈·앱·기록·설정)
+- 폰트: [Pretendard](https://github.com/orioncactus/pretendard) — SIL Open Font License 1.1 (`app/src/main/assets/licenses/pretendard_OFL.txt`)
+- CI 가 Robolectric + Roborazzi 로 실제 화면을 렌더링해 `latest-debug` 릴리스에 `screenshots.zip` 으로 올립니다.

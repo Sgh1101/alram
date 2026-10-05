@@ -1,53 +1,74 @@
 package com.alram.mail.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.alram.mail.AppContainer
+import com.alram.mail.R
 import com.alram.mail.core.DeliveryMode
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.data.NotificationEntity
 import com.alram.mail.data.Status
-import com.alram.mail.engine.DispatchState
-import com.alram.mail.ui.LocalContainer
-import com.alram.mail.ui.components.Divider
+import com.alram.mail.ui.components.AppIcon
+import com.alram.mail.ui.components.AppSwitch
+import com.alram.mail.ui.components.Banner
+import com.alram.mail.ui.components.BannerTone
 import com.alram.mail.ui.components.EmptyState
+import com.alram.mail.ui.components.GroupCard
+import com.alram.mail.ui.components.LiveDot
+import com.alram.mail.ui.components.Pill
+import com.alram.mail.ui.components.RowDivider
+import com.alram.mail.ui.components.SecondaryButton
 import com.alram.mail.ui.components.SectionHeader
-import com.alram.mail.ui.components.StatBlock
+import com.alram.mail.ui.components.SettingRow
+import com.alram.mail.ui.components.groupItem
 import com.alram.mail.ui.containerViewModel
 import com.alram.mail.ui.formatMinute
 import com.alram.mail.ui.formatTime
 import com.alram.mail.ui.rememberSystemState
 import com.alram.mail.ui.startOfToday
+import com.alram.mail.ui.theme.AlramTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -113,88 +134,129 @@ fun HomeScreen(onOpenSetup: () -> Unit, onOpenHistory: () -> Unit) {
     val paused = core.masterEnabled && now < core.pausedUntil
     val running = core.masterEnabled && !paused
     val gmailReady = prefs.gmailAddress.isNotBlank() && remember(prefs.gmailAddress) { vm.hasPassword() }
-    val setupMissing = listOf(gmailReady, system.listenerEnabled, system.notificationsAllowed, system.batteryUnrestricted).count { !it }
+    val setupMissing = listOf(gmailReady, system.listenerEnabled, system.notificationsAllowed, system.batteryUnrestricted)
+        .count { !it }
+    val recipients = core.recipients.ifEmpty { listOf(prefs.gmailAddress) }.joinToString(", ")
 
-    LazyColumn(Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 28.dp)) {
+        item { HomeHeader() }
         item {
-            Text(
-                "Alram Mail",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
-            )
-        }
-        item {
-            StatusCard(
+            HeroCard(
                 running = running,
                 paused = paused,
                 pausedUntil = core.pausedUntil,
-                subtitle = when {
-                    !gmailReady -> "Gmail을 연결하면 전달이 시작돼요"
-                    else -> "${prefs.gmailAddress} · ${modeLabel(core.defaultMode, core.batchMinutes, core.dailyMinute)}"
-                },
+                gmailReady = gmailReady,
+                from = prefs.gmailAddress,
+                to = recipients,
+                modeLabel = modeLabel(core.defaultMode, core.batchMinutes, core.dailyMinute),
                 onToggle = vm::setMaster,
                 onPause = vm::pauseFor,
                 onPauseTomorrow = vm::pauseUntilTomorrowMorning,
                 onResume = vm::resume,
+                onConnect = onOpenSetup,
             )
         }
         if (setupMissing > 0) {
             item {
                 Banner(
-                    text = "설정이 ${setupMissing}개 남았어요. 완료해야 알림이 끊기지 않고 전달돼요.",
+                    text = "설정이 ${setupMissing}개 남았어요. 마저 하면 알림이 끊기지 않아요.",
+                    tone = BannerTone.Warn,
                     action = "설정하기",
                     onAction = onOpenSetup,
-                    tone = BannerTone.Warn,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
             }
         }
         dispatch.lastError?.let { err ->
-            item { Banner(text = err, action = null, onAction = {}, tone = BannerTone.Error) }
+            item { Banner(text = err, tone = BannerTone.Error, modifier = Modifier.padding(top = 12.dp)) }
         }
         dispatch.notice?.let { notice ->
-            item { Banner(text = notice, action = null, onAction = {}, tone = BannerTone.Warn) }
+            item { Banner(text = notice, tone = BannerTone.Info, modifier = Modifier.padding(top = 12.dp)) }
         }
         if (failed > 0) {
             item {
                 Banner(
                     text = "전송에 실패한 알림이 ${failed}건 있어요.",
+                    tone = BannerTone.Error,
                     action = "다시 시도",
                     onAction = vm::retryFailed,
-                    tone = BannerTone.Error,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
             }
         }
         item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-            ) {
-                StatBlock("$sentToday", "오늘 전달")
-                StatBlock("$pending", "대기 중")
-                StatBlock("$failed", "실패", emphasize = failed > 0)
-            }
-        }
-        if (pending > 0) {
-            item {
-                TextButton(onClick = vm::sendNow, modifier = Modifier.padding(horizontal = 12.dp)) {
-                    Text("대기 중인 ${pending}건 지금 보내기")
+            GroupCard(Modifier.padding(top = 12.dp)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 18.dp)) {
+                    StatCell("$sentToday", "오늘 전달", Modifier.weight(1f))
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    StatCell("$pending", "대기 중", Modifier.weight(1f))
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    StatCell(
+                        "$failed",
+                        "실패",
+                        Modifier.weight(1f),
+                        color = if (failed > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                if (pending > 0) {
+                    RowDivider()
+                    SettingRow(
+                        title = "대기 중인 ${pending}건 지금 보내기",
+                        icon = Icons.AutoMirrored.Rounded.Send,
+                        onClick = vm::sendNow,
+                    )
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("최근 알림", Modifier.weight(1f))
-                TextButton(onClick = onOpenHistory) { Text("전체 보기") }
+            SectionHeader("최근 알림") {
+                TextButton(onClick = onOpenHistory) { Text("전체 보기", style = MaterialTheme.typography.labelMedium) }
             }
         }
         if (recent.isEmpty()) {
-            item { EmptyState("아직 받은 알림이 없어요", "다른 앱에 알림이 오면 여기에 나타납니다.") }
+            item {
+                GroupCard {
+                    EmptyState(
+                        "아직 받은 알림이 없어요",
+                        "다른 앱에 알림이 오면 여기에 나타나요.",
+                        icon = Icons.Rounded.NotificationsNone,
+                    )
+                }
+            }
         } else {
-            items(recent, key = { it.id }) { n ->
-                NotificationRow(n)
-                Divider(Modifier.padding(start = 72.dp))
+            itemsIndexed(recent, key = { _, n -> n.id }) { i, n ->
+                Column(Modifier.groupItem(i, recent.size)) {
+                    NotificationRow(n)
+                    if (i < recent.size - 1) RowDivider(inset = 64.dp)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeHeader() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BrandMark(30.dp)
+        Spacer(Modifier.width(10.dp))
+        Text("Alram Mail", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+/** 앱 아이콘과 같은 그림(배경+전경 벡터)을 작게 잘라서 보여 준다. */
+@Composable
+fun BrandMark(size: androidx.compose.ui.unit.Dp) {
+    // 아이콘 벡터는 108 단위 중 가운데 72 단위가 보이는 영역이다.
+    val full = size * 1.5f
+    Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)), contentAlignment = Alignment.Center) {
+        Image(painterResource(R.drawable.ic_launcher_background), null, Modifier.requiredSize(full))
+        Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.requiredSize(full))
     }
 }
 
@@ -205,72 +267,142 @@ private fun modeLabel(mode: DeliveryMode, batchMinutes: Int, dailyMinute: Int) =
 }
 
 @Composable
-private fun StatusCard(
+private fun HeroCard(
     running: Boolean,
     paused: Boolean,
     pausedUntil: Long,
-    subtitle: String,
+    gmailReady: Boolean,
+    from: String,
+    to: String,
+    modeLabel: String,
     onToggle: (Boolean) -> Unit,
     onPause: (Int) -> Unit,
     onPauseTomorrow: () -> Unit,
     onResume: () -> Unit,
+    onConnect: () -> Unit,
 ) {
-    val container = if (running) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-    val onContainer = if (running) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = container,
-        contentColor = onContainer,
+    val x = AlramTheme.colors
+    val cs = MaterialTheme.colorScheme
+    val active = running && gmailReady
+    val fg = if (active) x.onHero else cs.onSurface
+    val muted = if (active) x.onHeroMuted else cs.onSurfaceVariant
+    val background = if (active) {
+        Modifier.background(Brush.linearGradient(listOf(x.heroStart, x.heroEnd)))
+    } else {
+        Modifier.background(x.card)
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .then(background)
+            .padding(20.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        when {
-                            running -> "알림을 전달하고 있어요"
-                            paused -> "${formatTime(pausedUntil)}까지 쉬는 중"
-                            else -> "전달이 꺼져 있어요"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = onContainer.copy(alpha = 0.75f))
-                }
-                Switch(checked = running || paused, onCheckedChange = onToggle)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LiveDot(
+                active = active,
+                color = when {
+                    active -> Color.White
+                    paused -> cs.tertiary
+                    else -> cs.outline
+                },
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                when {
+                    !gmailReady -> "연결 필요"
+                    active -> "실시간 전달 중 · $modeLabel"
+                    paused -> "일시 중지"
+                    else -> "꺼짐"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = muted,
+                modifier = Modifier.weight(1f),
+            )
+            AppSwitch(checked = running || paused, onCheckedChange = onToggle, onHero = active)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            when {
+                !gmailReady -> "Gmail을 연결하면\n바로 시작돼요"
+                active -> "알림을 메일로\n보내고 있어요"
+                paused -> "${formatTime(pausedUntil)}까지\n잠시 쉬는 중"
+                else -> "전달이\n꺼져 있어요"
+            },
+            style = MaterialTheme.typography.headlineMedium,
+            color = fg,
+        )
+
+        if (gmailReady) {
+            Spacer(Modifier.height(16.dp))
+            RouteLine("보내기", from, fg, muted)
+            Spacer(Modifier.height(4.dp))
+            RouteLine("받기", to, fg, muted)
+        }
+
+        when {
+            !gmailReady -> {
+                Spacer(Modifier.height(18.dp))
+                SecondaryButton("Gmail 연결하기", onClick = onConnect)
             }
-            if (running) {
-                Spacer(Modifier.height(14.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = { onPause(30) }, label = { Text("30분 쉬기") })
-                    AssistChip(onClick = { onPause(60) }, label = { Text("1시간") })
-                    AssistChip(onClick = { onPause(180) }, label = { Text("3시간") })
-                    AssistChip(onClick = onPauseTomorrow, label = { Text("내일 아침까지") })
-                }
-            } else if (paused) {
+            active -> {
+                Spacer(Modifier.height(18.dp))
+                Text("잠시 쉬기", style = MaterialTheme.typography.labelSmall, color = muted)
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onResume) { Text("지금 다시 시작") }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HeroPill("30분") { onPause(30) }
+                    HeroPill("1시간") { onPause(60) }
+                    HeroPill("3시간") { onPause(180) }
+                    HeroPill("내일 아침까지", onPauseTomorrow)
+                }
+            }
+            paused -> {
+                Spacer(Modifier.height(18.dp))
+                SecondaryButton("지금 다시 시작", onClick = onResume)
             }
         }
     }
 }
 
-enum class BannerTone { Warn, Error }
+@Composable
+private fun RouteLine(label: String, value: String, fg: Color, muted: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.width(44.dp))
+        Text(
+            value.ifBlank { "-" },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = fg,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 @Composable
-fun Banner(text: String, action: String?, onAction: () -> Unit, tone: BannerTone) {
-    val bg = if (tone == BannerTone.Error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
-    val fg = if (tone == BannerTone.Error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = bg,
-        contentColor = fg,
-    ) {
-        Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 6.dp))
-            if (action != null) TextButton(onClick = onAction) { Text(action, color = fg, fontWeight = FontWeight.SemiBold) }
-        }
+private fun HeroPill(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = Color.White,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.16f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun StatCell(value: String, label: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.headlineSmall, color = color)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -280,26 +412,39 @@ fun NotificationRow(n: NotificationEntity, modifier: Modifier = Modifier, onClic
         modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        com.alram.mail.ui.components.AppIcon(n.packageName, n.appLabel, size = 36.dp)
-        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+        AppIcon(n.packageName, n.appLabel, size = 36.dp)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        n.appLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    when (n.status) {
+                        Status.PENDING -> Pill("대기", MaterialTheme.colorScheme.primary, Modifier.padding(start = 6.dp))
+                        Status.FAILED -> Pill("실패", MaterialTheme.colorScheme.error, Modifier.padding(start = 6.dp))
+                    }
+                }
                 Text(
-                    n.appLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
+                    formatTime(n.postedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(start = 8.dp),
                 )
-                Text(formatTime(n.postedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
             }
             Text(
                 n.title.ifBlank { "(제목 없음)" },
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
             )
             if (n.text.isNotBlank()) {
                 Text(
@@ -307,21 +452,9 @@ fun NotificationRow(n: NotificationEntity, modifier: Modifier = Modifier, onClic
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        Spacer(Modifier.padding(start = 8.dp))
-        val dot = when (n.status) {
-            Status.SENT -> MaterialTheme.colorScheme.primary
-            Status.FAILED -> MaterialTheme.colorScheme.error
-            else -> MaterialTheme.colorScheme.outline
-        }
-        Spacer(
-            Modifier
-                .padding(top = 6.dp)
-                .size(8.dp)
-                .background(dot, androidx.compose.foundation.shape.CircleShape),
-        )
     }
 }
