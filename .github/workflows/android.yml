@@ -29,11 +29,12 @@ jobs:
       - name: Unit tests (core)
         run: ./gradlew :core:test --stacktrace
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+      # 배포용은 release 빌드(같은 고정 키로 서명). 테스트용 구성 요소가 섞이지 않는다.
+      - name: Build APK
+        run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk AlramMail.apk
+        run: cp app/build/outputs/apk/release/app-release.apk AlramMail.apk
 
       # 실제 화면을 렌더링한 스크린샷(디자인 확인용). 실패해도 APK 배포는 계속한다.
       - name: Screenshot tests

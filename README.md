@@ -29,11 +29,11 @@ app/    Android: 알림 수집 서비스, Room, SMTP 발송, Jetpack Compose UI
 
 ```
 ./gradlew :core:test          # 로직 테스트 (Android SDK 불필요: -PcoreOnly)
-./gradlew :app:assembleDebug  # APK
+./gradlew :app:assembleRelease  # 배포용 APK (고정 키 서명)
 ```
 
 GitHub Actions 가 푸시마다 APK 를 빌드해서 `latest-debug` 릴리스에 올립니다.
-(고정 디버그 키로 서명하므로 폰에서 앱을 지우지 않고 덮어써서 업데이트할 수 있습니다.)
+(저장소의 고정 키로 서명하므로 폰에서 앱을 지우지 않고 덮어써서 업데이트할 수 있습니다.)
 
 ## 처음 사용하기
 

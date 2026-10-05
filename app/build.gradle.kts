@@ -48,6 +48,11 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // javax.mail 이 참조하는 java.awt 등으로 release 빌드가 막히지 않게 한다. (개인 배포용)
+        checkReleaseBuilds = false
+    }
+
     testOptions {
         unitTests {
             // 스크린샷 테스트(Robolectric)에서 폰트·벡터 리소스를 쓰기 위해 필요
