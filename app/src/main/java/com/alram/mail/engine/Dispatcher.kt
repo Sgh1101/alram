@@ -27,6 +27,8 @@ import java.time.ZoneId
 
 data class DispatchState(
     val lastError: String? = null,
+    /** 오류는 아니지만 알려야 할 상태(예: 메일이 몰려 묶음으로 전환). */
+    val notice: String? = null,
     val lastOkAt: Long = 0L,
     val sending: Boolean = false,
 )
@@ -48,6 +50,7 @@ class Dispatcher(
     private val flushLock = Mutex()
     private var job: Job? = null
     private var networkRegistered = false
+    @Volatile private var lastNetworkRetry = 0L
 
     private val _state = MutableStateFlow(DispatchState())
     val state: StateFlow<DispatchState> = _state.asStateFlow()
@@ -68,6 +71,8 @@ class Dispatcher(
         while (true) {
             val hold: Long? = try {
                 val next = db.notifications().nextDueAt()
+                // 보낼 게 없으면 "메일이 몰림" 안내는 더 이상 의미가 없다.
+                if (next == null && _state.value.notice != null) _state.value = _state.value.copy(notice = null)
                 val wait = if (next == null) Long.MAX_VALUE else next - System.currentTimeMillis()
                 if (wait <= 0) flush() else wait
             } catch (t: Throwable) {
@@ -106,12 +111,27 @@ class Dispatcher(
             return@withLock 10 * 60_000L
         }
 
+        // 짧은 시간에 메일이 몰리면(예상 못 한 반복 포함) 즉시 발송을 멈추고 묶음 메일로 합친다.
+        val windowBudget = BURST_MAX_MAILS - db.mails().countSince(now - BURST_WINDOW_MS)
+        val busyNotice = "짧은 시간에 메일이 많이 나가서 잠시 모아서 보내는 중이에요."
+        if (windowBudget <= 0) {
+            _state.value = _state.value.copy(notice = busyNotice)
+            return@withLock 60_000L
+        }
+        _state.value = _state.value.copy(notice = if (windowBudget <= BURST_MAX_MAILS / 3) busyNotice else null)
+
         val rowById = rows.associateBy { it.id }
-        val plan = MailPlanner.plan(rows.map { it.toQueued() }, recipients, budget, core.maxItemsPerMail)
+        val plan = MailPlanner.plan(
+            rows.map { it.toQueued() },
+            recipients,
+            minOf(budget, windowBudget),
+            core.maxItemsPerMail,
+        )
         if (plan.isEmpty()) return@withLock 60_000L
 
         _state.value = _state.value.copy(sending = true)
         try {
+            val handled = HashSet<Long>()
             for (mail in plan) {
                 val content = MailComposer.compose(mail.kind, mail.items, zone, System.currentTimeMillis())
                 val result = sender.send(
@@ -132,20 +152,24 @@ class Dispatcher(
                         ),
                     )
                     db.notifications().markSent(mail.itemIds, sentAt, mailId)
+                    handled += mail.itemIds
                     _state.value = _state.value.copy(lastError = null, lastOkAt = sentAt)
                 } else {
                     val e = result.exceptionOrNull()
                     val message = (e as? MailException)?.userMessage ?: (e?.message ?: "전송 실패")
                     val nextAttempt = (mail.itemIds.maxOf { rowById[it]?.attempts ?: 0 }) + 1
-                    db.notifications().markRetry(
-                        mail.itemIds,
-                        System.currentTimeMillis() + Backoff.delayMs(nextAttempt),
-                        message,
-                    )
+                    val retryAt = System.currentTimeMillis() + Backoff.delayMs(nextAttempt)
+                    db.notifications().markRetry(mail.itemIds, retryAt, message)
                     db.notifications().failExhausted(Backoff.MAX_ATTEMPTS)
+                    handled += mail.itemIds
                     _state.value = _state.value.copy(lastError = message)
-                    // 로그인/주소 문제는 나머지도 모두 실패하므로 이번 라운드를 중단한다.
-                    if ((e as? MailException)?.isAuth == true) break
+                    if ((e as? MailException)?.isAuth == true) {
+                        // 로그인/주소 문제는 나머지도 전부 실패한다. Gmail 에 로그인 시도를 연달아 하지 않도록
+                        // 이번 라운드의 남은 항목도 함께 미루고 멈춘다.
+                        val rest = rows.map { it.id }.filterNot { it in handled }
+                        if (rest.isNotEmpty()) db.notifications().postpone(rest, retryAt, message)
+                        return@withLock 60_000L
+                    }
                 }
             }
         } finally {
@@ -169,7 +193,14 @@ class Dispatcher(
             System.currentTimeMillis(),
         )
         val recipients = settings.current().core.recipients.ifEmpty { listOf(address) }
-        return sender.send(address, appPassword, recipients, content)
+        return sender.send(address, appPassword, recipients, content).also {
+            if (it.isSuccess) _state.value = _state.value.copy(lastError = null)
+        }
+    }
+
+    private companion object {
+        const val BURST_WINDOW_MS = 10 * 60_000L
+        const val BURST_MAX_MAILS = 30
     }
 
     private fun registerNetworkCallback() {
@@ -179,7 +210,10 @@ class Dispatcher(
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    // 네트워크가 돌아오면 백오프 중인 항목도 바로 재시도한다.
+                    // 네트워크가 돌아오면 백오프 중인 항목도 바로 재시도한다. (연결이 깜빡여도 30초에 한 번만)
+                    val now = System.currentTimeMillis()
+                    if (now - lastNetworkRetry < 30_000L) return
+                    lastNetworkRetry = now
                     scope.launch {
                         db.notifications().retryPendingNow(System.currentTimeMillis())
                         wake.trySend(Unit)

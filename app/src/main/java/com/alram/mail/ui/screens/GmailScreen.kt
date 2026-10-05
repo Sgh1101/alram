@@ -70,6 +70,7 @@ fun GmailScreen(onBack: () -> Unit) {
     suspend fun persist(addr: String, pw: String) {
         c.secrets.save(pw)
         c.settings.update { it.copy(gmailAddress = addr) }
+        c.db.notifications().retryPendingNow(System.currentTimeMillis())
         c.dispatcher.poke()
     }
 

@@ -1,5 +1,6 @@
 package com.alram.mail.mail
 
+import com.alram.mail.core.LoopGuard
 import com.alram.mail.core.MailContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,7 +49,7 @@ class SmtpSender {
                 override fun getPasswordAuthentication() = PasswordAuthentication(username, appPassword)
             })
             val msg = MimeMessage(session).apply {
-                setFrom(InternetAddress(username, "Alram Mail", "UTF-8"))
+                setFrom(InternetAddress(username, LoopGuard.SENDER_NAME, "UTF-8"))
                 setRecipients(Message.RecipientType.TO, recipients.map { InternetAddress(it) }.toTypedArray())
                 setSubject(content.subject, "UTF-8")
                 sentDate = Date()

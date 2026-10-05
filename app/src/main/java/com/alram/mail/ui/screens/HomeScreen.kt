@@ -151,6 +151,9 @@ fun HomeScreen(onOpenSetup: () -> Unit, onOpenHistory: () -> Unit) {
         dispatch.lastError?.let { err ->
             item { Banner(text = err, action = null, onAction = {}, tone = BannerTone.Error) }
         }
+        dispatch.notice?.let { notice ->
+            item { Banner(text = notice, action = null, onAction = {}, tone = BannerTone.Warn) }
+        }
         if (failed > 0) {
             item {
                 Banner(

@@ -123,6 +123,10 @@ interface NotificationDao {
     @Query("UPDATE notifications SET status = 'FAILED' WHERE status = 'PENDING' AND attempts >= :max")
     suspend fun failExhausted(max: Int)
 
+    /** 시도하지 않은 항목을 재시도 횟수는 그대로 두고 뒤로 미룬다. */
+    @Query("UPDATE notifications SET dueAt = :dueAt, lastError = :error WHERE id IN (:ids)")
+    suspend fun postpone(ids: List<Long>, dueAt: Long, error: String)
+
     @Query("SELECT COUNT(*) FROM notifications WHERE fingerprint = :fp AND createdAt >= :since")
     suspend fun countFingerprintSince(fp: String, since: Long): Int
 
@@ -135,8 +139,8 @@ interface NotificationDao {
     @Query("UPDATE notifications SET dueAt = :now WHERE status = 'PENDING'")
     suspend fun sendAllPendingNow(now: Long)
 
-    /** 이미 한 번 이상 실패한(백오프 중인) 대기 항목만 즉시 재시도 대상으로 돌린다. */
-    @Query("UPDATE notifications SET dueAt = :now WHERE status = 'PENDING' AND attempts > 0 AND dueAt > :now")
+    /** 실패해서 미뤄진(백오프 중인) 대기 항목만 즉시 재시도 대상으로 돌린다. 방해금지/묶음 대기 항목은 그대로. */
+    @Query("UPDATE notifications SET dueAt = :now WHERE status = 'PENDING' AND lastError IS NOT NULL AND dueAt > :now")
     suspend fun retryPendingNow(now: Long)
 
     @Query("DELETE FROM notifications WHERE id = :id")
@@ -201,6 +205,9 @@ interface MailLogDao {
 
     @Query("SELECT COUNT(*) FROM mails WHERE sentAt >= :since")
     suspend fun countSince(since: Long): Int
+
+    @Query("SELECT subject FROM mails WHERE sentAt >= :since")
+    suspend fun subjectsSince(since: Long): List<String>
 
     @Query("SELECT COUNT(*) FROM mails WHERE sentAt >= :since")
     fun observeCountSince(since: Long): Flow<Int>

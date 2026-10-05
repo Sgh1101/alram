@@ -5,6 +5,7 @@ import com.alram.mail.core.BodyMode
 import com.alram.mail.core.CapturedNotification
 import com.alram.mail.core.Decision
 import com.alram.mail.core.Fingerprint
+import com.alram.mail.core.LoopGuard
 import com.alram.mail.core.OtpMasker
 import com.alram.mail.core.RuleEngine
 import com.alram.mail.data.AlramDb
@@ -32,9 +33,13 @@ class CaptureProcessor(
                 packageName = n.packageName,
                 label = n.appLabel,
                 isSystem = AppCatalog.isSystemPackage(context.packageManager, n.packageName),
+                enabled = AppCatalog.defaultEnabled(n.packageName),
             ),
         )
         rules.touch(n.packageName, n.appLabel, now)
+
+        // 이 앱이 보낸 메일의 알림(Gmail 등)이 다시 메일이 되는 무한 반복을 막는다.
+        if (LoopGuard.isEcho(n, db.mails().subjectsSince(now - ECHO_WINDOW_MS))) return
 
         val rule = rules.get(n.packageName)?.toRule()
         val decision = RuleEngine.decide(n, rule, core, now, ZoneId.systemDefault())
@@ -77,5 +82,9 @@ class CaptureProcessor(
             ),
         )
         dispatcher.poke()
+    }
+
+    private companion object {
+        const val ECHO_WINDOW_MS = 30 * 60_000L
     }
 }

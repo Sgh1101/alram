@@ -262,3 +262,35 @@ class MailComposerTest {
         assertTrue(MailComposer.compose(MailKind.BATCH, items, SEOUL, now).subject.endsWith("외 2개 앱"))
     }
 }
+
+class LoopGuardTest {
+    private val gmail = "com.google.android.gm"
+
+    @Test fun `내가 보낸 메일의 Gmail 알림은 되먹임으로 판단`() {
+        val n = notif(pkg = gmail, label = "Gmail", title = "Alram Mail", text = "[카카오톡] 홍길동\n안녕")
+        assertTrue(LoopGuard.isEcho(n, emptyList()))
+    }
+
+    @Test fun `발신자 이름이 달라 보여도 최근 보낸 제목이 있으면 되먹임`() {
+        val n = notif(pkg = gmail, label = "Gmail", title = "나", text = "[카카오톡] 홍길동 · 2건")
+        assertTrue(LoopGuard.isEcho(n, listOf("[카카오톡] 홍길동 · 2건")))
+    }
+
+    @Test fun `긴 제목은 앞부분만 맞아도 되먹임`() {
+        val subject = "[알림 모음] 12건 · 카카오톡 5, 쿠팡 3, 배민 2 외 2개 앱"
+        val n = notif(pkg = gmail, label = "Gmail", title = "나", text = subject.take(30) + "…")
+        assertTrue(LoopGuard.isEcho(n, listOf(subject)))
+    }
+
+    @Test fun `평범한 알림은 통과`() {
+        val n = notif(title = "홍길동", text = "내일 몇 시에 봐?")
+        assertFalse(LoopGuard.isEcho(n, listOf("[카카오톡] 홍길동", "[알림 모음] 3건 · 카카오톡 3")))
+        // 너무 짧은 제목은 오탐 위험이 있어 비교하지 않는다.
+        assertFalse(LoopGuard.isEcho(notif(text = "ok"), listOf("ok")))
+    }
+
+    @Test fun `메일 앱 목록에 Gmail 포함`() {
+        assertTrue(gmail in LoopGuard.MAIL_APPS)
+        assertFalse("com.kakao.talk" in LoopGuard.MAIL_APPS)
+    }
+}

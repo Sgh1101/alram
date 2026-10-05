@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import com.alram.mail.core.LoopGuard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -22,12 +23,16 @@ class AppCatalog(private val context: Context, private val dao: AppRuleDao) {
                         packageName = info.packageName,
                         label = info.loadLabel(pm).toString(),
                         isSystem = isSystem(info),
+                        enabled = defaultEnabled(info.packageName),
                     ),
                 )
             }
     }
 
     companion object {
+        /** 메일 앱은 처음부터 꺼 둔다(메일을 다시 메일로 보낼 필요가 없고 되먹임 위험이 있음). null 은 전역 기본값. */
+        fun defaultEnabled(pkg: String): Boolean? = if (pkg in LoopGuard.MAIL_APPS) false else null
+
         fun isSystem(info: ApplicationInfo): Boolean =
             (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 &&
                 (info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
