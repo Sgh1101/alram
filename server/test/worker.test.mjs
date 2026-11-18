@@ -208,9 +208,30 @@ test('URL 토큰과 텍스트 형식 (헤더를 못 넣는 폴링 도구용)', a
 
   let res = await call('GET', `/api/new?token=${READ}&format=text&consumer=feed`);
   assert.equal(res.headers.get('Content-Type'), 'text/plain; charset=utf-8');
-  assert.equal(await res.text(), '새 알림 1건\n#1 [2026-11-18 09:12] 카카오톡 | 엄마: 저녁 먹고 들어오니?\n');
+  assert.equal(await res.text(), '새 알림 1건 (2026-11-18 09:12 ~ 2026-11-18 09:12)\n#1 [2026-11-18 09:12] 카카오톡 | 엄마: 저녁 먹고 들어오니?\n');
   res = await call('GET', `/api/new?token=${READ}&format=text&consumer=feed`);
   assert.equal(await res.text(), '새 알림 없음\n');
+});
+
+test('하루 한 번 몰아 받기: 1000건까지, 앱별로 묶기, 긴 본문 자르기', async () => {
+  const { call } = setup();
+  const many = [];
+  for (let i = 0; i < 300; i++) many.push(item(`k${i}`, { postedAtIso: '2026-11-18T10:00:00+09:00' }));
+  many.push(item('t1', { package: 'viva.republica.toss', app: '토스', title: '입금', text: '가'.repeat(500), postedAtIso: '2026-11-18T22:30:00+09:00' }));
+  await call('POST', '/ingest', { token: INGEST, body: payload(many) });
+
+  const res = await call('GET', `/api/new?token=${READ}&consumer=grok&format=text&group=app&limit=1000`);
+  const body = await res.text();
+  const lines = body.trimEnd().split('\n');
+  assert.equal(lines[0], '새 알림 301건 (2026-11-18 10:00 ~ 2026-11-18 22:30)');
+  assert.equal(lines[2], '## 카카오톡 (300건)');
+  assert.ok(lines.includes('## 토스 (1건)'));
+  const toss = lines[lines.length - 1];
+  assert.ok(toss.startsWith('#301 [2026-11-18 22:30] 입금: '));
+  assert.ok(toss.endsWith('가…'));
+  assert.equal(toss.length, '#301 [2026-11-18 22:30] 입금: '.length + 300 + 1);
+
+  assert.equal(await (await call('GET', `/api/new?token=${READ}&consumer=grok&format=text`)).text(), '새 알림 없음\n');
 });
 
 test('MCP get_new_notifications', async () => {

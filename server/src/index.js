@@ -19,6 +19,10 @@ const MAX_ITEMS_PER_INGEST = 500;
 const MAX_BODY_BYTES = 2_000_000;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+/** /api/new 는 하루 한 번 몰아서 받는 경우를 위해 한 번에 더 많이 준다. */
+const MAX_NEW_LIMIT = 1000;
+/** 텍스트 형식에서 알림 한 건 본문의 최대 글자 수 (긴 공지 하나가 전체를 덮지 않게). */
+const TEXT_BODY_MAX = 300;
 const LIMITS = { title: 1000, text: 8000, subText: 1000, conversation: 500, category: 100, app: 200, package: 200 };
 
 const MCP_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -83,7 +87,7 @@ async function route(request, env) {
         limit: q.get('limit'),
         peek: ['1', 'true', 'yes'].includes((q.get('peek') ?? '').toLowerCase()),
       });
-      return asText ? text(renderNewText(data)) : json(data);
+      return asText ? text(renderNewText(data, q.get('group') === 'app')) : json(data);
     }
     if (path === '/api/new/ack' && method === 'POST') {
       const body = await readJson(request);
@@ -281,7 +285,7 @@ async function saveCursor(env, consumer, seq, now) {
 export async function getNew(env, { consumer, limit, peek = false } = {}, now = Date.now()) {
   const name = consumerName(consumer);
   const from = await cursorOf(env, name, now);
-  const max = clamp(toInt(limit) ?? 100, 0, MAX_LIMIT);
+  const max = clamp(toInt(limit) ?? 100, 0, MAX_NEW_LIMIT);
   const pendingRow = await env.DB.prepare('SELECT COUNT(*) AS n FROM notifications WHERE seq > ?').bind(from).first();
   const pending = pendingRow?.n ?? 0;
   if (max === 0 || pending === 0) {
@@ -314,20 +318,39 @@ export async function ackNew(env, consumer, upTo, now = Date.now()) {
   return { ok: true, consumer: name, cursor: seq };
 }
 
+function itemLine(it, withApp = true) {
+  const when = (it.posted_at || '').replace('T', ' ').slice(0, 16);
+  const who = [it.title, it.conversation].filter(Boolean).join(' · ');
+  let body = (it.text || '').replace(/\s+/g, ' ').trim();
+  if (body.length > TEXT_BODY_MAX) body = body.slice(0, TEXT_BODY_MAX) + '…';
+  const app = withApp ? ` ${it.app}${who ? ' |' : ''}` : '';
+  return `#${it.id} [${when}]${app}${who ? ' ' + who : ''}${body ? ': ' + body : ''}`;
+}
+
 function renderItemsText(items, header) {
-  const lines = [header];
+  return [header, ...items.map((it) => itemLine(it))].join('\n') + '\n';
+}
+
+/** 앱별로 묶는다. 알림이 많은 앱부터, 앱 안에서는 시간순. 하루치 요약을 읽기 좋게. */
+function renderGroupedText(items, header) {
+  const groups = new Map();
   for (const it of items) {
-    const when = (it.posted_at || '').replace('T', ' ').slice(0, 16);
-    const who = [it.title, it.conversation].filter(Boolean).join(' · ');
-    const body = (it.text || '').replace(/\s+/g, ' ').trim();
-    lines.push(`#${it.id} [${when}] ${it.app}${who ? ' | ' + who : ''}${body ? ': ' + body : ''}`);
+    if (!groups.has(it.app)) groups.set(it.app, []);
+    groups.get(it.app).push(it);
+  }
+  const lines = [header];
+  for (const [app, list] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
+    lines.push('', `## ${app} (${list.length}건)`, ...list.map((it) => itemLine(it, false)));
   }
   return lines.join('\n') + '\n';
 }
 
-function renderNewText(d) {
+function renderNewText(d, byApp = false) {
   if (d.count === 0) return d.remaining > 0 ? `새 알림 ${d.remaining}건 대기 중\n` : '새 알림 없음\n';
-  return renderItemsText(d.items, `새 알림 ${d.count}건${d.has_more ? ` (아직 ${d.remaining}건 더 있음)` : ''}`);
+  const first = d.items[0].posted_at.replace('T', ' ').slice(0, 16);
+  const last = d.items[d.items.length - 1].posted_at.replace('T', ' ').slice(0, 16);
+  const header = `새 알림 ${d.count}건 (${first} ~ ${last})${d.has_more ? ` · 아직 ${d.remaining}건 더 있음` : ''}`;
+  return byApp ? renderGroupedText(d.items, header) : renderItemsText(d.items, header);
 }
 
 export async function listApps(env, { since } = {}, now = Date.now()) {
@@ -382,7 +405,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         consumer: { type: 'string', description: '읽는 쪽 이름 (기본 default). 영문/숫자/_.- 40자 이내' },
-        limit: { type: 'integer', minimum: 0, maximum: MAX_LIMIT, description: '최대 개수 (기본 100). 0 이면 개수만 확인' },
+        limit: { type: 'integer', minimum: 0, maximum: MAX_NEW_LIMIT, description: '최대 개수 (기본 100, 최대 1000). 0 이면 개수만 확인' },
         peek: { type: 'boolean', description: 'true 면 읽은 위치를 옮기지 않음 (기본 false)' },
       },
       additionalProperties: false,
