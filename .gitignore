@@ -13,3 +13,6 @@ app/screenshots/
 server/node_modules/
 server/.wrangler/
 server/.dev.vars
+
+# 빌드 결과물
+*.apk
