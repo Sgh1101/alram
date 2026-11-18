@@ -234,6 +234,26 @@ test('하루 한 번 몰아 받기: 1000건까지, 앱별로 묶기, 긴 본문 
   assert.equal(await (await call('GET', `/api/new?token=${READ}&consumer=grok&format=text`)).text(), '새 알림 없음\n');
 });
 
+test('상태 점검: 마지막 수신과 에이전트별 마지막 확인', async () => {
+  const { call } = setup();
+  let st = await (await call('GET', '/api/status', { token: READ })).json();
+  assert.equal(st.notifications.total, 0);
+  assert.deepEqual(st.consumers, []);
+
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('1'), item('2')]) });
+  await call('GET', '/api/new?consumer=pickle&limit=1', { token: READ });
+  st = await (await call('GET', '/api/status', { token: READ })).json();
+  assert.equal(st.notifications.total, 2);
+  assert.equal(st.notifications.minutes_since_last_received, 0);
+  assert.equal(st.devices[0].name, 'Galaxy S24');
+  assert.deepEqual(st.consumers.map((c) => [c.consumer, c.pending, c.minutes_since_last_check]), [['pickle', 1, 0]]);
+
+  const t = await (await call('GET', `/api/status?format=text&token=${READ}`)).text();
+  assert.match(t, /pickle: 마지막 확인 0분 전 · 안 가져간 알림 1건/);
+  // 상태 확인은 커서를 움직이지 않는다
+  assert.equal((await (await call('GET', '/api/new?consumer=pickle', { token: READ })).json()).count, 1);
+});
+
 test('MCP get_new_notifications', async () => {
   const { call } = setup();
   await call('POST', '/ingest', { token: INGEST, body: payload([item('1')]) });

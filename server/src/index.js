@@ -6,6 +6,7 @@
 //   GET  /api/notifications           알림 조회/검색                    (READ_TOKEN)
 //   POST /api/notifications/handle    처리했다고 표시                   (READ_TOKEN)
 //   GET  /api/apps                    앱별 건수                         (READ_TOKEN)
+//   GET  /api/status                  잘 돌고 있는지: 마지막 수신, 에이전트별 마지막 확인 (READ_TOKEN)
 //   POST /mcp  또는 /mcp/<READ_TOKEN>  MCP(Streamable HTTP) 엔드포인트   (READ_TOKEN)
 //   GET  /health                      상태 확인                          (인증 없음)
 //
@@ -100,6 +101,10 @@ async function route(request, env) {
     if (path === '/api/notifications/handle' && method === 'POST') {
       const body = await readJson(request);
       return json(await markHandled(env, body.ids, body.note, body.handled !== false));
+    }
+    if (path === '/api/status' && method === 'GET') {
+      const data = await status(env);
+      return asText ? text(renderStatusText(data)) : json(data);
     }
     if (path === '/api/apps' && method === 'GET') {
       return json(await listApps(env, { since: url.searchParams.get('since') }));
@@ -351,6 +356,59 @@ function renderNewText(d, byApp = false) {
   const last = d.items[d.items.length - 1].posted_at.replace('T', ' ').slice(0, 16);
   const header = `새 알림 ${d.count}건 (${first} ~ ${last})${d.has_more ? ` · 아직 ${d.remaining}건 더 있음` : ''}`;
   return byApp ? renderGroupedText(d.items, header) : renderItemsText(d.items, header);
+}
+
+// ───────────────────────────────────────────── 상태 점검
+
+/** 폰이 잘 올리고 있는지(마지막 수신), 에이전트들이 잘 가져가고 있는지(consumer 별 마지막 확인·밀린 건수). */
+export async function status(env, now = Date.now()) {
+  const totals = await env.DB.prepare(
+    `SELECT COUNT(*) AS total, MAX(seq) AS last_id, MAX(received_at) AS last_received_at,
+            SUM(CASE WHEN received_at >= ? THEN 1 ELSE 0 END) AS last_24h
+       FROM notifications`,
+  ).bind(now - 86_400_000).first();
+  const { results: devices } = await env.DB.prepare(
+    `SELECT device_name, MAX(received_at) AS last_received_at, COUNT(*) AS count
+       FROM notifications GROUP BY device_id ORDER BY last_received_at DESC LIMIT 10`,
+  ).all();
+  const { results: cursors } = await env.DB.prepare(
+    `SELECT c.consumer, c.last_seq, c.updated_at,
+            (SELECT COUNT(*) FROM notifications n WHERE n.seq > c.last_seq) AS pending
+       FROM cursors c ORDER BY c.updated_at DESC LIMIT 50`,
+  ).all();
+  const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
+  const ago = (ms) => (ms ? Math.round((now - ms) / 60_000) : null);
+  return {
+    now: iso(now),
+    notifications: {
+      total: totals?.total ?? 0,
+      last_24h: totals?.last_24h ?? 0,
+      last_id: totals?.last_id ?? 0,
+      last_received_at: iso(totals?.last_received_at),
+      minutes_since_last_received: ago(totals?.last_received_at),
+    },
+    devices: devices.map((d) => ({
+      name: d.device_name, count: d.count,
+      last_received_at: iso(d.last_received_at), minutes_since_last_received: ago(d.last_received_at),
+    })),
+    consumers: cursors.map((c) => ({
+      consumer: c.consumer, cursor: c.last_seq, pending: c.pending,
+      last_checked_at: iso(c.updated_at), minutes_since_last_check: ago(c.updated_at),
+    })),
+  };
+}
+
+function renderStatusText(s) {
+  const n = s.notifications;
+  const lines = [
+    `알림 전체 ${n.total}건 · 최근 24시간 ${n.last_24h}건`,
+    n.last_received_at ? `폰에서 마지막 수신: ${n.minutes_since_last_received}분 전` : '아직 받은 알림 없음',
+  ];
+  for (const c of s.consumers) {
+    lines.push(`${c.consumer}: 마지막 확인 ${c.minutes_since_last_check}분 전 · 안 가져간 알림 ${c.pending}건`);
+  }
+  if (s.consumers.length === 0) lines.push('아직 알림을 가져간 에이전트 없음');
+  return lines.join('\n') + '\n';
 }
 
 export async function listApps(env, { since } = {}, now = Date.now()) {
