@@ -188,6 +188,10 @@ class ScreenshotTest {
         click("카카오톡"); shot("03b_app_detail_agent")
         back()
         click("홈")
+        runBlocking { c.settings.updateCore { it.copy(defaultDestination = com.alram.mail.core.Destination.AGENT) } }
+        shot("01b_home_agent_only")
+        runBlocking { c.settings.updateCore { it.copy(defaultDestination = com.alram.mail.core.Destination.BOTH) } }
+        shot("01c_home_mail_and_agent")
 
         runBlocking { c.settings.update { it.copy(theme = ThemeMode.DARK) } }
         shot("11_home_dark")

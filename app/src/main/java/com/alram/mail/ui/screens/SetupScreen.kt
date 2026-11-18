@@ -54,7 +54,11 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val prefs by c.settings.prefs.collectAsStateWithLifecycle(initialValue = AppPrefs())
     val system = rememberSystemState()
-    val gmailDone = prefs.gmailAddress.isNotBlank() && c.secrets.has()
+    val gmailConnected = prefs.gmailAddress.isNotBlank() && c.secrets.has()
+    // 기본 보낼 곳이 "에이전트만"이고 에이전트가 연결돼 있으면 Gmail 은 필요 없다.
+    val agentOnly = prefs.core.agentEnabled && prefs.agentUrl.isNotBlank() && c.agentToken.has() &&
+        prefs.core.defaultDestination == com.alram.mail.core.Destination.AGENT
+    val gmailDone = gmailConnected || agentOnly
 
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
@@ -101,10 +105,14 @@ fun SetupScreen(onOpenGmail: () -> Unit, onDone: () -> Unit) {
 
         Step(
             number = 1,
-            title = "Gmail 연결",
-            body = "알림을 보낼 Gmail 주소와 앱 비밀번호를 등록해요.",
+            title = if (agentOnly && !gmailConnected) "Gmail 연결 (선택)" else "Gmail 연결",
+            body = if (agentOnly && !gmailConnected) {
+                "지금은 에이전트로만 보내고 있어서 필요 없어요. 메일도 받고 싶을 때 연결하세요."
+            } else {
+                "알림을 보낼 Gmail 주소와 앱 비밀번호를 등록해요."
+            },
             done = gmailDone,
-            actionLabel = if (gmailDone) "다시 설정" else "연결하기",
+            actionLabel = if (gmailConnected) "다시 설정" else "연결하기",
             onAction = onOpenGmail,
             canRedo = true,
         )

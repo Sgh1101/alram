@@ -46,6 +46,7 @@ import androidx.lifecycle.viewModelScope
 import com.alram.mail.AppContainer
 import com.alram.mail.R
 import com.alram.mail.core.DeliveryMode
+import com.alram.mail.core.Destination
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.data.NotificationEntity
 import com.alram.mail.data.Status
@@ -116,6 +117,7 @@ class HomeVm(private val c: AppContainer) : ViewModel() {
     }
 
     fun hasPassword(): Boolean = c.secrets.has()
+    fun hasAgentToken(): Boolean = c.agentToken.has()
 }
 
 @Composable
@@ -134,9 +136,26 @@ fun HomeScreen(onOpenSetup: () -> Unit, onOpenHistory: () -> Unit) {
     val paused = core.masterEnabled && now < core.pausedUntil
     val running = core.masterEnabled && !paused
     val gmailReady = prefs.gmailAddress.isNotBlank() && remember(prefs.gmailAddress) { vm.hasPassword() }
-    val setupMissing = listOf(gmailReady, system.listenerEnabled, system.notificationsAllowed, system.batteryUnrestricted)
+    val agentReady = core.agentEnabled && prefs.agentUrl.isNotBlank() && remember(prefs.agentUrl) { vm.hasAgentToken() }
+    // 기본 보낼 곳이 "에이전트만"이면 Gmail 없이도 동작한다.
+    val agentOnly = agentReady && core.defaultDestination == Destination.AGENT
+    val ready = gmailReady || agentOnly
+    val setupMissing = listOf(ready, system.listenerEnabled, system.notificationsAllowed, system.batteryUnrestricted)
         .count { !it }
     val recipients = core.recipients.ifEmpty { listOf(prefs.gmailAddress) }.joinToString(", ")
+    val agentHost = prefs.agentUrl.removePrefix("https://").substringBefore('/')
+    val routes = buildList {
+        if (gmailReady && !agentOnly) {
+            add("보내기" to prefs.gmailAddress)
+            add("받기" to recipients)
+        }
+        if (agentReady) add("서버" to agentHost)
+    }
+    val headline = when {
+        agentOnly -> "알림을 에이전트로\n보내고 있어요"
+        agentReady -> "알림을 메일과\n에이전트로 보내고 있어요"
+        else -> "알림을 메일로\n보내고 있어요"
+    }
 
     LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 28.dp)) {
         item { HomeHeader() }
@@ -145,10 +164,10 @@ fun HomeScreen(onOpenSetup: () -> Unit, onOpenHistory: () -> Unit) {
                 running = running,
                 paused = paused,
                 pausedUntil = core.pausedUntil,
-                gmailReady = gmailReady,
-                from = prefs.gmailAddress,
-                to = recipients,
-                modeLabel = modeLabel(core.defaultMode, core.batchMinutes, core.dailyMinute),
+                ready = ready,
+                headline = headline,
+                routes = routes,
+                modeLabel = if (agentOnly) "에이전트" else modeLabel(core.defaultMode, core.batchMinutes, core.dailyMinute),
                 onToggle = vm::setMaster,
                 onPause = vm::pauseFor,
                 onPauseTomorrow = vm::pauseUntilTomorrowMorning,
@@ -269,9 +288,9 @@ private fun HeroCard(
     running: Boolean,
     paused: Boolean,
     pausedUntil: Long,
-    gmailReady: Boolean,
-    from: String,
-    to: String,
+    ready: Boolean,
+    headline: String,
+    routes: List<Pair<String, String>>,
     modeLabel: String,
     onToggle: (Boolean) -> Unit,
     onPause: (Int) -> Unit,
@@ -281,7 +300,7 @@ private fun HeroCard(
 ) {
     val x = AlramTheme.colors
     val cs = MaterialTheme.colorScheme
-    val active = running && gmailReady
+    val active = running && ready
     val fg = if (active) x.onHero else cs.onSurface
     val muted = if (active) x.onHeroMuted else cs.onSurfaceVariant
     val background = if (active) {
@@ -310,7 +329,7 @@ private fun HeroCard(
             Spacer(Modifier.width(8.dp))
             Text(
                 when {
-                    !gmailReady -> "연결 필요"
+                    !ready -> "연결 필요"
                     active -> "실시간 전달 중 · $modeLabel"
                     paused -> "일시 중지"
                     else -> "꺼짐"
@@ -324,8 +343,8 @@ private fun HeroCard(
         Spacer(Modifier.height(10.dp))
         Text(
             when {
-                !gmailReady -> "Gmail을 연결하면\n바로 시작돼요"
-                active -> "알림을 메일로\n보내고 있어요"
+                !ready -> "Gmail을 연결하면\n바로 시작돼요"
+                active -> headline
                 paused -> "${formatTime(pausedUntil)}까지\n잠시 쉬는 중"
                 else -> "전달이\n꺼져 있어요"
             },
@@ -333,15 +352,16 @@ private fun HeroCard(
             color = fg,
         )
 
-        if (gmailReady) {
+        if (ready && routes.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
-            RouteLine("보내기", from, fg, muted)
-            Spacer(Modifier.height(4.dp))
-            RouteLine("받기", to, fg, muted)
+            routes.forEachIndexed { i, (label, value) ->
+                if (i > 0) Spacer(Modifier.height(4.dp))
+                RouteLine(label, value, fg, muted)
+            }
         }
 
         when {
-            !gmailReady -> {
+            !ready -> {
                 Spacer(Modifier.height(18.dp))
                 SecondaryButton("Gmail 연결하기", onClick = onConnect)
             }
