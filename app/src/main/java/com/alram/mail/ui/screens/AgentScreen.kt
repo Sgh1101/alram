@@ -11,12 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
@@ -45,10 +43,10 @@ import com.alram.mail.data.Status
 import com.alram.mail.ui.LocalContainer
 import com.alram.mail.ui.components.Banner
 import com.alram.mail.ui.components.BannerTone
-import com.alram.mail.ui.components.ChoiceDialog
 import com.alram.mail.ui.components.ConfirmDialog
 import com.alram.mail.ui.components.FormField
 import com.alram.mail.ui.components.GroupCard
+import com.alram.mail.ui.components.Hint
 import com.alram.mail.ui.components.IconRowInset
 import com.alram.mail.ui.components.PrimaryButton
 import com.alram.mail.ui.components.RowDivider
@@ -56,7 +54,6 @@ import com.alram.mail.ui.components.SecondaryButton
 import com.alram.mail.ui.components.SectionHeader
 import com.alram.mail.ui.components.SettingRow
 import com.alram.mail.ui.components.SubScreen
-import com.alram.mail.ui.components.SwitchRow
 import com.alram.mail.ui.formatTime
 import com.alram.mail.ui.keepAll
 import kotlinx.coroutines.launch
@@ -130,28 +127,11 @@ fun AgentScreen(onBack: () -> Unit) {
             )
 
             if (connected) {
-                GroupCard {
-                    SwitchRow(
-                        "에이전트로 보내기",
-                        prefs.core.agentEnabled,
-                        { on ->
-                            scope.launch {
-                                c.settings.updateCore { it.copy(agentEnabled = on) }
-                                c.agent.poke()
-                            }
-                        },
-                        subtitle = prefs.agentUrl.removePrefix("https://"),
-                        icon = Icons.Rounded.SmartToy,
-                    )
-                    RowDivider(inset = IconRowInset)
-                    SettingRow(
-                        "기본으로 보낼 곳",
-                        subtitle = "앱마다 따로 정할 수 있어요",
-                        icon = Icons.AutoMirrored.Rounded.Send,
-                        value = destinationLabel(prefs.core.defaultDestination),
-                        onClick = { dialog = "dest" },
-                    )
-                }
+                GroupCard { DeliverySwitches(onOpenAgent = null) }
+                Hint(
+                    "앱마다 따로 정하려면 앱 탭 → 앱 선택 → 보낼 곳.",
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
+                )
 
                 state.lastError?.takeIf { prefs.core.agentEnabled }?.let {
                     Banner(it, BannerTone.Error, modifier = Modifier.padding(top = 12.dp))
@@ -261,14 +241,6 @@ fun AgentScreen(onBack: () -> Unit) {
     }
 
     when (dialog) {
-        "dest" -> ChoiceDialog(
-            "기본으로 보낼 곳",
-            Destination.entries.map { it to destinationLabel(it) },
-            prefs.core.defaultDestination,
-            { d -> scope.launch { c.settings.updateCore { it.copy(defaultDestination = d) } } },
-            { dialog = null },
-            message = "앱마다 따로 정하지 않은 경우에 적용돼요. '에이전트만'으로 두면 메일은 오지 않아요.",
-        )
         "disconnect" -> ConfirmDialog(
             title = "에이전트 연결 해제",
             message = "저장된 토큰을 지우고 에이전트로 보내기를 꺼요. 알림은 다시 메일로만 가요.",

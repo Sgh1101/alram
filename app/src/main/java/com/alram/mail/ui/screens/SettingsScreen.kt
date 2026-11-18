@@ -125,6 +125,9 @@ fun SettingsScreen(
             )
         }
 
+        SectionHeader("보낼 곳")
+        GroupCard { DeliverySwitches(onOpenAgent = onOpenAgent) }
+
         SectionHeader("전달")
         GroupCard {
             SettingRow("기본 전달 방식", icon = Icons.AutoMirrored.Rounded.Send, value = modeSummary(core), onClick = { dialog = "mode" })

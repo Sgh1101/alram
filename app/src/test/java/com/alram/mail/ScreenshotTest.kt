@@ -184,6 +184,7 @@ class ScreenshotTest {
         }
         scrollClick("에이전트 연결"); shot("09b_agent_connected")
         back()
+        compose.onNodeWithText("보낼 곳").performScrollTo(); shot("05b_settings_switches")
         click("앱")
         click("카카오톡"); shot("03b_app_detail_agent")
         back()
