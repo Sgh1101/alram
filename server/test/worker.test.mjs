@@ -128,7 +128,7 @@ test('MCP: initialize, tools/list, tools/call, 경로 토큰', async () => {
   assert.equal(n.status, 202);
 
   r = await (await call('POST', `/mcp/${READ}`, { body: { jsonrpc: '2.0', id: 2, method: 'tools/list' } })).json();
-  assert.deepEqual(r.result.tools.map((t) => t.name), ['list_notifications', 'list_apps', 'mark_handled']);
+  assert.deepEqual(r.result.tools.map((t) => t.name), ['get_new_notifications', 'list_notifications', 'list_apps', 'mark_handled']);
 
   r = await (await call('POST', `/mcp/${READ}`, {
     body: { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_notifications', arguments: { query: '택배', since: '1h' } } },
@@ -146,6 +146,84 @@ test('MCP: initialize, tools/list, tools/call, 경로 토큰', async () => {
   assert.equal(r.status, 401);
 
   assert.equal((await call('GET', '/mcp', { token: READ })).status, 405);
+});
+
+test('폴링: 서버가 위치를 기억해서 새 알림만 준다', async () => {
+  const { call } = setup();
+  const poll = async (qs = '') => (await call('GET', '/api/new' + qs, { token: READ })).json();
+
+  // 처음엔 최근 1시간 이내에 받은 것부터
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('1'), item('2', { title: '택배' })]) });
+  let r = await poll();
+  assert.deepEqual(r.items.map((i) => i.id), [1, 2]);
+  assert.equal(r.consumer, 'default');
+
+  // 다음 호출(5분 뒤)엔 아무것도 없음
+  r = await poll();
+  assert.equal(r.count, 0);
+  assert.equal(r.has_more, false);
+
+  // 새 알림 3건, limit 2 → 두 번에 나눠 받는다
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('3'), item('4'), item('5')]) });
+  r = await poll('?limit=0');
+  assert.deepEqual([r.count, r.remaining], [0, 3]); // 개수만 확인, 위치는 그대로
+  r = await poll('?limit=2');
+  assert.deepEqual(r.items.map((i) => i.id), [3, 4]);
+  assert.deepEqual([r.has_more, r.remaining], [true, 1]);
+  r = await poll('?limit=2');
+  assert.deepEqual(r.items.map((i) => i.id), [5]);
+
+  // consumer 가 다르면 따로 기억
+  r = await poll('?consumer=pickle');
+  assert.deepEqual(r.items.map((i) => i.id), [1, 2, 3, 4, 5]);
+
+  // peek 은 위치를 옮기지 않고, ack 로 확정
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('6')]) });
+  r = await poll('?consumer=pickle&peek=1');
+  assert.deepEqual(r.items.map((i) => i.id), [6]);
+  r = await poll('?consumer=pickle&peek=1');
+  assert.deepEqual(r.items.map((i) => i.id), [6]);
+  const ack = await call('POST', '/api/new/ack', { token: READ, body: { consumer: 'pickle', up_to: r.cursor } });
+  assert.deepEqual(await ack.json(), { ok: true, consumer: 'pickle', cursor: 6 });
+  r = await poll('?consumer=pickle');
+  assert.equal(r.count, 0);
+
+  assert.equal((await call('GET', '/api/new?consumer=' + encodeURIComponent('나쁜 이름'), { token: READ })).status, 400);
+});
+
+test('처음 보는 consumer 는 1시간보다 오래된 알림은 건너뛴다', async () => {
+  const { env, call } = setup();
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('old')]) });
+  env.DB.raw.exec(`UPDATE notifications SET received_at = received_at - 7200000`);
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('new')]) });
+  const r = await (await call('GET', '/api/new', { token: READ })).json();
+  assert.equal(r.count, 1);
+});
+
+test('URL 토큰과 텍스트 형식 (헤더를 못 넣는 폴링 도구용)', async () => {
+  const { call } = setup();
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('1', { text: '저녁\n먹고 들어오니?' })]) });
+  assert.equal((await call('GET', '/api/new?token=wrong-token-xxxxxxxxxx')).status, 401);
+  assert.equal((await call('GET', `/api/new?token=${INGEST}`)).status, 401);
+
+  let res = await call('GET', `/api/new?token=${READ}&format=text&consumer=feed`);
+  assert.equal(res.headers.get('Content-Type'), 'text/plain; charset=utf-8');
+  assert.equal(await res.text(), '새 알림 1건\n#1 [2026-11-18 09:12] 카카오톡 | 엄마: 저녁 먹고 들어오니?\n');
+  res = await call('GET', `/api/new?token=${READ}&format=text&consumer=feed`);
+  assert.equal(await res.text(), '새 알림 없음\n');
+});
+
+test('MCP get_new_notifications', async () => {
+  const { call } = setup();
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('1')]) });
+  const tool = async (args) => {
+    const r = await (await call('POST', `/mcp/${READ}`, {
+      body: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_new_notifications', arguments: args } },
+    })).json();
+    return r.result.structuredContent;
+  };
+  assert.equal((await tool({ consumer: 'pickle' })).count, 1);
+  assert.equal((await tool({ consumer: 'pickle' })).count, 0);
 });
 
 test('토큰이 설정되지 않으면 아무것도 받지 않는다', async () => {

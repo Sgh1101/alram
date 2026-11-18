@@ -4,8 +4,8 @@
 Cloudflare Workers + D1(SQLite) 무료 플랜 범위에서 돌아갑니다.
 
 ```
-폰(Alram Mail) ──POST /ingest──▶  Worker + D1  ◀──MCP / REST── 에이전트
-              INGEST_TOKEN                      READ_TOKEN
+폰(Alram Mail) ──즉시 POST /ingest──▶  Worker + D1  ◀──5분마다 GET /api/new (또는 MCP)── 에이전트
+              INGEST_TOKEN                           READ_TOKEN
 ```
 
 - **토큰이 두 개**입니다. 폰은 쓰기만(`INGEST_TOKEN`), 에이전트는 읽기·처리 표시만(`READ_TOKEN`) 할 수 있습니다.
@@ -42,6 +42,36 @@ npm run deploy                           # https://alram-agent.<내계정>.worke
 그다음 설정에서 *기본으로 보낼 곳*(메일만 / 에이전트만 / 메일 + 에이전트)을 고르고, 앱마다 따로 정할 수도 있습니다.
 키워드 필터·인증번호 가리기·제목만 보내기는 에이전트로 가는 알림에도 그대로 적용되고, 방해금지 시간은 메일에만 적용됩니다.
 
+## 에이전트가 몇 분마다 확인하는 경우 (폴링)
+
+에이전트가 웹훅을 받을 수 없어도 됩니다. 폰은 알림이 오는 즉시(몇 초 안에) 서버에 올려 두고,
+에이전트는 정해진 주기(예: 5분)마다 **새로 온 것만** 가져가면 됩니다. 실제 지연은 최대 확인 주기만큼입니다.
+
+서버가 에이전트마다 "어디까지 가져갔는지"를 기억하므로, 에이전트는 이전 실행 내용을 기억할 필요가 없습니다.
+
+| 방법 | 쓰는 법 |
+|---|---|
+| MCP | `get_new_notifications` 도구 하나만 주기적으로 부르기 (`consumer` 에 에이전트 이름, 예: `pickle`) |
+| URL 하나로 | `GET https://.../api/new?consumer=pickle&format=text&token=<READ_TOKEN>` |
+| JSON | `GET https://.../api/new?consumer=pickle` + `Authorization: Bearer <READ_TOKEN>` |
+
+`format=text` 응답 예:
+
+```
+새 알림 2건
+#41 [2026-11-18 20:00] 쿠팡 | 오늘 도착: 배송 출발
+#42 [2026-11-18 20:03] 카카오톡 | 엄마: 저녁 먹고 들어오니?
+```
+
+새 알림이 없으면 `새 알림 없음` 한 줄만 옵니다(토큰 소모가 거의 없음).
+
+- 처음 쓰는 `consumer` 이름은 최근 1시간 알림부터 받습니다.
+- 한 번에 최대 100건(`limit` 으로 조절, 최대 200). 더 있으면 `has_more: true` / "아직 N건 더 있음".
+- `limit=0` 은 개수만 확인합니다(위치는 그대로).
+- 가져가는 순간 위치가 넘어갑니다. 처리 도중 실패할 수 있는 에이전트라면 `peek=1` 로 받고,
+  다 처리한 뒤 `POST /api/new/ack {"consumer":"pickle","up_to":<응답의 cursor>}` 로 확정하세요.
+- `?token=` 은 헤더를 넣을 수 없는 도구를 위한 것입니다. 이 URL 은 비밀번호처럼 다뤄 주세요.
+
 ## 에이전트 연결 (MCP)
 
 MCP 주소는 둘 중 편한 것을 쓰면 됩니다.
@@ -59,6 +89,7 @@ MCP 주소는 둘 중 편한 것을 쓰면 됩니다.
 
 | 도구 | 하는 일 |
 |---|---|
+| `get_new_notifications` | 지난번 이후 새로 온 알림만 (서버가 위치 기억). 주기적 확인용 |
 | `list_notifications` | 알림 조회·검색. `query`(검색어), `app`(앱 이름/패키지), `since`/`until`(`30m`, `6h`, `2d` 또는 ISO 시각), `unhandled_only`, `limit`. `after_id` 에 이전 응답의 `next_after_id` 를 넘기면 **새로 온 알림만** 받습니다. |
 | `list_apps` | 앱별 알림 수, 미처리 수, 마지막 알림 시각 |
 | `mark_handled` | 처리 표시(메모 포함). `handled: false` 로 되돌리기 |

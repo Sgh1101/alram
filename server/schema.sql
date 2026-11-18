@@ -20,3 +20,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS idx_notifications_posted ON notifications (posted_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_package ON notifications (package, posted_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_handled ON notifications (handled_at, posted_at);
+
+-- 폴링하는 에이전트마다 "어디까지 가져갔는지" 기억한다. 에이전트가 상태를 못 들고 다녀도 새 알림만 받을 수 있다.
+CREATE TABLE IF NOT EXISTS cursors (
+  consumer   TEXT PRIMARY KEY,
+  last_seq   INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
