@@ -1,6 +1,7 @@
 package com.alram.mail.engine
 
 import android.content.Context
+import com.alram.mail.agent.AgentDispatcher
 import com.alram.mail.core.BodyMode
 import com.alram.mail.core.CapturedNotification
 import com.alram.mail.core.Decision
@@ -8,6 +9,7 @@ import com.alram.mail.core.Fingerprint
 import com.alram.mail.core.LoopGuard
 import com.alram.mail.core.OtpMasker
 import com.alram.mail.core.RuleEngine
+import com.alram.mail.data.AgentQueueEntity
 import com.alram.mail.data.AlramDb
 import com.alram.mail.data.AppCatalog
 import com.alram.mail.data.AppRuleEntity
@@ -21,6 +23,7 @@ class CaptureProcessor(
     private val db: AlramDb,
     private val settings: SettingsRepository,
     private val dispatcher: Dispatcher,
+    private val agent: AgentDispatcher,
 ) {
     suspend fun handle(n: CapturedNotification) {
         val now = System.currentTimeMillis()
@@ -59,29 +62,52 @@ class CaptureProcessor(
         }
 
         val fingerprint = Fingerprint.of(n.packageName, title, text)
-        if (core.dedupeSeconds > 0 &&
-            db.notifications().countFingerprintSince(fingerprint, now - core.dedupeSeconds * 1000L) > 0
-        ) return
+        val dedupeSince = now - core.dedupeSeconds * 1000L
 
-        db.notifications().insert(
-            NotificationEntity(
-                sbnKey = n.key,
-                packageName = n.packageName,
-                appLabel = n.appLabel,
-                title = title,
-                text = text,
-                subText = subText,
-                conversation = n.conversation,
-                category = n.category,
-                postedAt = n.postedAt,
-                createdAt = now,
-                mode = decision.mode.name,
-                dueAt = decision.dueAt,
-                recipients = decision.recipients.joinToString(","),
-                fingerprint = fingerprint,
-            ),
-        )
-        dispatcher.poke()
+        if (decision.toMail &&
+            !(core.dedupeSeconds > 0 && db.notifications().countFingerprintSince(fingerprint, dedupeSince) > 0)
+        ) {
+            db.notifications().insert(
+                NotificationEntity(
+                    sbnKey = n.key,
+                    packageName = n.packageName,
+                    appLabel = n.appLabel,
+                    title = title,
+                    text = text,
+                    subText = subText,
+                    conversation = n.conversation,
+                    category = n.category,
+                    postedAt = n.postedAt,
+                    createdAt = now,
+                    mode = decision.mode.name,
+                    dueAt = decision.dueAt,
+                    recipients = decision.recipients.joinToString(","),
+                    fingerprint = fingerprint,
+                ),
+            )
+            dispatcher.poke()
+        }
+
+        if (decision.toAgent &&
+            !(core.dedupeSeconds > 0 && db.agentQueue().countFingerprintSince(fingerprint, dedupeSince) > 0)
+        ) {
+            db.agentQueue().insert(
+                AgentQueueEntity(
+                    packageName = n.packageName,
+                    appLabel = n.appLabel,
+                    title = title,
+                    text = text,
+                    subText = subText,
+                    conversation = n.conversation,
+                    category = n.category,
+                    postedAt = n.postedAt,
+                    createdAt = now,
+                    fingerprint = fingerprint,
+                    dueAt = now,
+                ),
+            )
+            agent.poke()
+        }
     }
 
     private companion object {

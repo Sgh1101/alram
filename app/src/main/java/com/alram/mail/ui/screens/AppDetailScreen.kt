@@ -42,6 +42,7 @@ import androidx.lifecycle.viewModelScope
 import com.alram.mail.AppContainer
 import com.alram.mail.core.BodyMode
 import com.alram.mail.core.DeliveryMode
+import com.alram.mail.core.Destination
 import com.alram.mail.core.LoopGuard
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.data.AppRuleEntity
@@ -122,6 +123,29 @@ fun AppDetailScreen(packageName: String, onBack: () -> Unit) {
                     BannerTone.Info,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+            }
+
+            if (prefs.core.agentEnabled) {
+                val destValue = r.destination?.let { runCatching { Destination.valueOf(it) }.getOrNull() }
+                SectionHeader("보낼 곳")
+                GroupCard {
+                    PillRow(
+                        options = listOf<Pair<Destination?, String>>(
+                            null to "기본값", Destination.MAIL to "메일",
+                            Destination.AGENT to "에이전트", Destination.BOTH to "둘 다",
+                        ),
+                        selected = destValue,
+                        onSelect = { d -> vm.edit { it.copy(destination = d?.name) } },
+                    )
+                    Hint(
+                        when (destValue ?: prefs.core.defaultDestination) {
+                            Destination.MAIL -> "메일로만 보내요. 에이전트 서버에는 올리지 않아요."
+                            Destination.AGENT -> "에이전트 서버에만 올려요. 메일은 오지 않아요."
+                            Destination.BOTH -> "메일로 보내고 에이전트 서버에도 올려요."
+                        } + if (destValue == null) " (기본값)" else "",
+                        Modifier.padding(bottom = 14.dp),
+                    )
+                }
             }
 
             val modeValue = r.mode?.let { runCatching { DeliveryMode.valueOf(it) }.getOrNull() }

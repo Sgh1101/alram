@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Timer
@@ -67,7 +68,12 @@ import com.alram.mail.ui.theme.AlramTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(onOpenGmail: () -> Unit, onOpenQuiet: () -> Unit, onOpenSetup: () -> Unit) {
+fun SettingsScreen(
+    onOpenGmail: () -> Unit,
+    onOpenQuiet: () -> Unit,
+    onOpenSetup: () -> Unit,
+    onOpenAgent: () -> Unit = {},
+) {
     val c = LocalContainer.current
     val context: Context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -98,6 +104,17 @@ fun SettingsScreen(onOpenGmail: () -> Unit, onOpenQuiet: () -> Unit, onOpenSetup
                 subtitle = core.recipients.joinToString(", ").ifBlank { "내 Gmail로 보내기" },
                 icon = Icons.Rounded.AlternateEmail,
                 onClick = { dialog = "recipients" },
+            )
+            RowDivider(inset = IconRowInset)
+            SettingRow(
+                title = "에이전트 연결",
+                subtitle = when {
+                    prefs.agentUrl.isBlank() -> "알림을 내 서버에 올려 AI 에이전트가 읽게 해요"
+                    core.agentEnabled -> "켜짐 · ${destinationLabel(core.defaultDestination)}"
+                    else -> "꺼짐"
+                },
+                icon = Icons.Rounded.SmartToy,
+                onClick = onOpenAgent,
             )
             RowDivider(inset = IconRowInset)
             SettingRow(
@@ -290,10 +307,15 @@ fun SettingsScreen(onOpenGmail: () -> Unit, onOpenQuiet: () -> Unit, onOpenSetup
         )
         "wipe" -> ConfirmDialog(
             title = "모든 기록 삭제",
-            message = "발송 기록과 아직 보내지 않은 알림이 모두 지워집니다.",
+            message = "발송 기록과 아직 보내지 않은 알림(에이전트 대기열 포함)이 모두 지워집니다.",
             confirmLabel = "삭제",
             destructive = true,
-            onConfirm = { scope.launch { c.db.notifications().deleteAll() } },
+            onConfirm = {
+                scope.launch {
+                    c.db.notifications().deleteAll()
+                    c.db.agentQueue().deleteAll()
+                }
+            },
             onDismiss = { dialog = null },
         )
     }

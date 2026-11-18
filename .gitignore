@@ -8,3 +8,8 @@ captures/
 .kotlin/
 app/schemas/
 app/screenshots/
+
+# 에이전트 서버
+server/node_modules/
+server/.wrangler/
+server/.dev.vars

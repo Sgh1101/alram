@@ -27,27 +27,41 @@ object RuleEngine {
             }
         }
 
+        val destination = if (s.agentEnabled) rule?.destination ?: s.defaultDestination else Destination.MAIL
+        val toAgent = destination != Destination.MAIL
+        var toMail = destination != Destination.AGENT
+        val bodyMode = rule?.bodyMode ?: s.defaultBodyMode
+        val maskOtp = rule?.maskOtp ?: s.maskOtp
+        val recipients = rule?.recipients.orEmpty()
+
         var mode = rule?.mode ?: s.defaultMode
         var dueAt = Scheduler.dueAt(mode, now, s, zone)
 
+        // 방해금지는 메일에만 적용한다. 에이전트는 사람을 깨우지 않으니 언제든 바로 받는다.
         val quiet = s.quiet
-        if (quiet.enabled) {
+        if (toMail && quiet.enabled) {
             if (quiet.contains(now, zone)) {
-                if (quiet.policy == QuietPolicy.DROP) return Decision.Drop(DropReason.QUIET_DROP)
-                // 방해금지 중에는 개별 발송 대신 끝난 뒤 한꺼번에 보낸다.
-                if (mode == DeliveryMode.INSTANT) mode = DeliveryMode.BATCH
-                dueAt = maxOf(dueAt, quiet.endAfter(now, zone))
+                if (quiet.policy == QuietPolicy.DROP) {
+                    if (!toAgent) return Decision.Drop(DropReason.QUIET_DROP)
+                    toMail = false
+                } else {
+                    // 방해금지 중에는 개별 발송 대신 끝난 뒤 한꺼번에 보낸다.
+                    if (mode == DeliveryMode.INSTANT) mode = DeliveryMode.BATCH
+                    dueAt = maxOf(dueAt, quiet.endAfter(now, zone))
+                }
             }
             // 묶음/요약 발송 시각이 방해금지 안에 떨어지면 끝난 뒤로 미룬다.
-            if (quiet.contains(dueAt, zone)) dueAt = quiet.endAfter(dueAt, zone)
+            if (toMail && quiet.contains(dueAt, zone)) dueAt = quiet.endAfter(dueAt, zone)
         }
 
         return Decision.Send(
             mode = mode,
             dueAt = dueAt,
-            bodyMode = rule?.bodyMode ?: s.defaultBodyMode,
-            maskOtp = rule?.maskOtp ?: s.maskOtp,
-            recipients = rule?.recipients.orEmpty(),
+            bodyMode = bodyMode,
+            maskOtp = maskOtp,
+            recipients = recipients,
+            toMail = toMail,
+            toAgent = toAgent,
         )
     }
 }

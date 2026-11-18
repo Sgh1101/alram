@@ -14,22 +14,27 @@
 - 일시 중지(30분·1시간·3시간·내일 아침까지)
 - **무한 반복 방지**: 이 앱이 보낸 메일이 Gmail 앱 알림으로 다시 잡혀 또 메일이 되는 되먹임을 차단
   (발신자 이름·최근 보낸 제목으로 판별, 메일 앱은 처음부터 꺼짐). 10분에 30통이 넘으면 자동으로 묶음 메일로 전환
+- **에이전트 연결**: 알림을 메일과 별도로 내 서버(`server/`, Cloudflare Worker)에 JSON 으로 올려서
+  AI 에이전트가 MCP/REST 로 검색·처리 표시할 수 있게 함. 앱별로 메일만 / 에이전트만 / 둘 다 선택
 
 ## 구조
 
 ```
-core/   순수 Kotlin: 규칙 엔진, 스케줄러, 메일 구성, 발송 계획기, OTP 마스킹 (JVM 단위 테스트)
-app/    Android: 알림 수집 서비스, Room, SMTP 발송, Jetpack Compose UI
+core/   순수 Kotlin: 규칙 엔진, 스케줄러, 메일 구성, 발송 계획기, OTP 마스킹, 에이전트 JSON (JVM 단위 테스트)
+app/    Android: 알림 수집 서비스, Room, SMTP 발송, 에이전트 업로드, Jetpack Compose UI
+server/ 에이전트 서버: Cloudflare Worker + D1, REST API 와 MCP 엔드포인트 (배포 방법은 server/README.md)
 ```
 
-알림 수집 → `RuleEngine` 판정 → Room 대기열 → `Dispatcher` 가 발송 시각이 된 항목을
-`MailPlanner` 로 묶어 Gmail SMTP(465/SSL)로 전송합니다.
+알림 수집 → `RuleEngine` 판정(보낼 곳: 메일/에이전트/둘 다) →
+- 메일: Room 대기열 → `Dispatcher` 가 발송 시각이 된 항목을 `MailPlanner` 로 묶어 Gmail SMTP(465/SSL)로 전송
+- 에이전트: `agent_queue` → `AgentDispatcher` 가 바로 `POST /ingest` (실패 시 지수 백오프로 재시도)
 
 ## 빌드
 
 ```
 ./gradlew :core:test          # 로직 테스트 (Android SDK 불필요: -PcoreOnly)
 ./gradlew :app:assembleRelease  # 배포용 APK (고정 키 서명)
+(cd server && npm test)         # 에이전트 서버 테스트 (Node 22+)
 ```
 
 GitHub Actions 가 푸시마다 APK 를 빌드해서 `latest-debug` 릴리스에 올립니다.

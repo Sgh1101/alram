@@ -8,6 +8,9 @@ enum class BodyMode { FULL, TITLE_ONLY }
 
 enum class QuietPolicy { HOLD, DROP }
 
+/** 알림을 어디로 보낼지. AGENT 는 에이전트 서버(웹훅)로 JSON 을 보낸다. */
+enum class Destination { MAIL, AGENT, BOTH }
+
 /** 폰에서 수집한 알림 한 건. */
 data class CapturedNotification(
     val key: String,
@@ -36,6 +39,7 @@ data class AppRule(
     val includeKeywords: List<String> = emptyList(),
     val excludeKeywords: List<String> = emptyList(),
     val recipients: List<String> = emptyList(),
+    val destination: Destination? = null,
 )
 
 data class QuietHours(
@@ -71,6 +75,10 @@ data class GlobalSettings(
     val recipients: List<String> = emptyList(),
     val dailyMailCap: Int = 400,
     val maxItemsPerMail: Int = 100,
+    /** 에이전트 서버로도 보내기. 꺼져 있으면 앱별 설정과 무관하게 메일로만 보낸다. */
+    val agentEnabled: Boolean = false,
+    /** 앱별로 정하지 않은 경우의 보낼 곳 (에이전트가 켜져 있을 때만 의미가 있다). */
+    val defaultDestination: Destination = Destination.BOTH,
 )
 
 sealed interface Decision {
@@ -80,6 +88,10 @@ sealed interface Decision {
         val bodyMode: BodyMode,
         val maskOtp: Boolean,
         val recipients: List<String>,
+        /** 메일 대기열에 넣을지. false 면 [mode]/[dueAt] 은 의미 없다. */
+        val toMail: Boolean = true,
+        /** 에이전트 대기열에 넣을지. */
+        val toAgent: Boolean = false,
     ) : Decision
 
     data class Drop(val reason: DropReason) : Decision

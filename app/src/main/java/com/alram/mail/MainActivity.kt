@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as AlramApp).container
         container.dispatcher.poke()
+        container.agent.poke()
         setContent {
             val prefs by container.settings.prefs.collectAsStateWithLifecycle(initialValue = null)
             val mode = prefs?.theme ?: ThemeMode.SYSTEM

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.alram.mail.data.AgentQueueEntity
 import com.alram.mail.data.AppRuleEntity
 import com.alram.mail.data.NotificationEntity
 import com.alram.mail.data.Status
@@ -164,6 +165,27 @@ class ScreenshotTest {
         click("설정 점검"); shot("07_setup")
         scrollClick("시작하기")
         scrollClick("방해금지 시간"); shot("08_quiet")
+        back()
+        scrollClick("에이전트 연결"); shot("09_agent")
+        back()
+        runBlocking {
+            app.getSharedPreferences("secret", Context.MODE_PRIVATE).edit().putString("agent_token", "x").commit()
+            c.settings.update {
+                it.copy(agentUrl = "https://alram-agent.example.workers.dev", core = it.core.copy(agentEnabled = true))
+            }
+            val t = System.currentTimeMillis() - 90_000L
+            c.db.agentQueue().insert(
+                AgentQueueEntity(
+                    packageName = "com.kakao.talk", appLabel = "카카오톡", title = "엄마", text = "저녁 먹고 들어오니?",
+                    subText = "", conversation = "", category = "", postedAt = t, createdAt = t, fingerprint = "a",
+                    status = Status.SENT, dueAt = t, sentAt = t + 2_000,
+                ),
+            )
+        }
+        scrollClick("에이전트 연결"); shot("09b_agent_connected")
+        back()
+        click("앱")
+        click("카카오톡"); shot("03b_app_detail_agent")
         back()
         click("홈")
 

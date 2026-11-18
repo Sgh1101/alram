@@ -10,6 +10,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val c = context.container
         c.dispatcher.start()
+        c.agent.start()
         val pending = goAsync()
         c.scope.launch {
             try {

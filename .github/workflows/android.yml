@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: ["claude/**", main]
+    branches: ["claude/**", "ccr-*", main]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +28,14 @@ jobs:
 
       - name: Unit tests (core)
         run: ./gradlew :core:test --stacktrace
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Agent server tests
+        working-directory: server
+        run: npm test
 
       # 배포용은 release 빌드(같은 고정 키로 서명). 테스트용 구성 요소가 섞이지 않는다.
       - name: Build APK

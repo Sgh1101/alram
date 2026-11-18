@@ -14,7 +14,10 @@ import com.alram.mail.core.AppRule
 import com.alram.mail.core.BodyMode
 import com.alram.mail.core.CapturedNotification
 import com.alram.mail.core.DeliveryMode
+import com.alram.mail.core.Destination
 import com.alram.mail.core.QueuedItem
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 object Status {
@@ -81,6 +84,8 @@ data class AppRuleEntity(
     val recipients: String = "",
     val lastSeenAt: Long = 0,
     val seenCount: Int = 0,
+    /** 보낼 곳(MAIL/AGENT/BOTH). null 이면 전역 기본값. */
+    val destination: String? = null,
 ) {
     fun toRule() = AppRule(
         packageName = packageName,
@@ -91,6 +96,36 @@ data class AppRuleEntity(
         includeKeywords = includeKeywords.split('\n').map { it.trim() }.filter { it.isNotEmpty() },
         excludeKeywords = excludeKeywords.split('\n').map { it.trim() }.filter { it.isNotEmpty() },
         recipients = recipients.split(',').map { it.trim() }.filter { it.isNotEmpty() },
+        destination = destination?.let { runCatching { Destination.valueOf(it) }.getOrNull() },
+    )
+}
+
+/** 에이전트 서버로 보낼 알림 대기열. 메일 대기열과 따로 관리한다. */
+@Entity(
+    tableName = "agent_queue",
+    indices = [Index("status", "dueAt"), Index("fingerprint", "createdAt")],
+)
+data class AgentQueueEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val packageName: String,
+    val appLabel: String,
+    val title: String,
+    val text: String,
+    val subText: String,
+    val conversation: String,
+    val category: String,
+    val postedAt: Long,
+    val createdAt: Long,
+    val fingerprint: String,
+    val status: String = Status.PENDING,
+    val attempts: Int = 0,
+    val dueAt: Long,
+    val lastError: String? = null,
+    val sentAt: Long? = null,
+) {
+    fun toCaptured() = CapturedNotification(
+        key = "agent:$id", packageName = packageName, appLabel = appLabel, title = title, text = text,
+        subText = subText, conversation = conversation, postedAt = postedAt, category = category,
     )
 }
 
@@ -216,13 +251,82 @@ interface MailLogDao {
     suspend fun deleteOlderThan(cutoff: Long)
 }
 
+@Dao
+interface AgentQueueDao {
+    @Insert
+    suspend fun insert(e: AgentQueueEntity): Long
+
+    @Query("SELECT MIN(dueAt) FROM agent_queue WHERE status = 'PENDING'")
+    suspend fun nextDueAt(): Long?
+
+    @Query("SELECT * FROM agent_queue WHERE status = 'PENDING' AND dueAt <= :now ORDER BY postedAt, id LIMIT :limit")
+    suspend fun due(now: Long, limit: Int): List<AgentQueueEntity>
+
+    @Query("UPDATE agent_queue SET status = 'SENT', sentAt = :now, lastError = NULL WHERE id IN (:ids)")
+    suspend fun markSent(ids: List<Long>, now: Long)
+
+    @Query("UPDATE agent_queue SET attempts = attempts + 1, dueAt = :dueAt, lastError = :error WHERE id IN (:ids)")
+    suspend fun markRetry(ids: List<Long>, dueAt: Long, error: String)
+
+    /** 재시도해도 소용없는 오류(서버가 형식을 거부 등)는 바로 실패로 둔다. */
+    @Query("UPDATE agent_queue SET status = 'FAILED', attempts = attempts + 1, lastError = :error WHERE id IN (:ids)")
+    suspend fun markFailed(ids: List<Long>, error: String)
+
+    @Query("UPDATE agent_queue SET status = 'FAILED' WHERE status = 'PENDING' AND attempts >= :max")
+    suspend fun failExhausted(max: Int)
+
+    @Query("SELECT COUNT(*) FROM agent_queue WHERE fingerprint = :fp AND createdAt >= :since")
+    suspend fun countFingerprintSince(fp: String, since: Long): Int
+
+    @Query("UPDATE agent_queue SET status = 'PENDING', attempts = 0, dueAt = :now, lastError = NULL WHERE status = 'FAILED'")
+    suspend fun retryAllFailed(now: Long)
+
+    @Query("UPDATE agent_queue SET dueAt = :now WHERE status = 'PENDING' AND dueAt > :now")
+    suspend fun retryPendingNow(now: Long)
+
+    @Query("DELETE FROM agent_queue WHERE status != 'PENDING' AND createdAt < :cutoff")
+    suspend fun deleteOlderThan(cutoff: Long)
+
+    @Query("DELETE FROM agent_queue")
+    suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM agent_queue WHERE status = :status")
+    fun observeCount(status: String): Flow<Int>
+
+    @Query("SELECT MAX(sentAt) FROM agent_queue")
+    fun observeLastSentAt(): Flow<Long?>
+}
+
 @Database(
-    entities = [NotificationEntity::class, AppRuleEntity::class, MailLogEntity::class],
-    version = 1,
-    exportSchema = false,
+    entities = [NotificationEntity::class, AppRuleEntity::class, MailLogEntity::class, AgentQueueEntity::class],
+    version = 2,
+    exportSchema = true,
 )
 abstract class AlramDb : RoomDatabase() {
     abstract fun notifications(): NotificationDao
     abstract fun appRules(): AppRuleDao
     abstract fun mails(): MailLogDao
+    abstract fun agentQueue(): AgentQueueDao
+
+    companion object {
+        /** v1 → v2: 앱별 보낼 곳 컬럼과 에이전트 대기열 추가. 기존 기록과 앱 설정은 그대로 둔다. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `app_rules` ADD COLUMN `destination` TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `agent_queue` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, " +
+                        "`appLabel` TEXT NOT NULL, `title` TEXT NOT NULL, `text` TEXT NOT NULL, " +
+                        "`subText` TEXT NOT NULL, `conversation` TEXT NOT NULL, `category` TEXT NOT NULL, " +
+                        "`postedAt` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `fingerprint` TEXT NOT NULL, " +
+                        "`status` TEXT NOT NULL, `attempts` INTEGER NOT NULL, `dueAt` INTEGER NOT NULL, " +
+                        "`lastError` TEXT, `sentAt` INTEGER)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_queue_status_dueAt` ON `agent_queue` (`status`, `dueAt`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_agent_queue_fingerprint_createdAt` ON `agent_queue` (`fingerprint`, `createdAt`)",
+                )
+            }
+        }
+    }
 }

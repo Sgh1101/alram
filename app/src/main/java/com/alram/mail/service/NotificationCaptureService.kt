@@ -16,6 +16,7 @@ class NotificationCaptureService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         container.dispatcher.start()
+        container.agent.start()
         container.scope.launch {
             if (container.settings.current().keepAlive) KeepAliveService.start(applicationContext)
         }

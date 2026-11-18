@@ -12,7 +12,9 @@ class FlushWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         val cutoff = System.currentTimeMillis() - retention * 24L * 3600_000L
         c.db.notifications().deleteOlderThan(cutoff)
         c.db.mails().deleteOlderThan(cutoff)
+        c.db.agentQueue().deleteOlderThan(cutoff)
         c.dispatcher.poke()
+        c.agent.poke()
         return Result.success()
     }
 }

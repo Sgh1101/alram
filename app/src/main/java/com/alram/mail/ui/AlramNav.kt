@@ -38,6 +38,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.alram.mail.data.AppPrefs
 import com.alram.mail.service.KeepAliveService
+import com.alram.mail.ui.screens.AgentScreen
 import com.alram.mail.ui.screens.AppDetailScreen
 import com.alram.mail.ui.screens.AppsScreen
 import com.alram.mail.ui.screens.GmailScreen
@@ -75,6 +76,7 @@ fun AlramNav(prefs: AppPrefs) {
     LaunchedEffect(prefs.keepAlive) {
         if (prefs.keepAlive) KeepAliveService.start(context) else KeepAliveService.stop(context)
         container.dispatcher.poke()
+        container.agent.poke()
     }
 
     Scaffold(
@@ -126,6 +128,7 @@ fun AlramNav(prefs: AppPrefs) {
                     onOpenGmail = { nav.navigate("gmail") },
                     onOpenQuiet = { nav.navigate("quiet") },
                     onOpenSetup = { nav.navigate("setup") },
+                    onOpenAgent = { nav.navigate("agent") },
                 )
             }
             composable("setup") {
@@ -136,6 +139,7 @@ fun AlramNav(prefs: AppPrefs) {
             }
             composable("gmail") { GmailScreen(onBack = { nav.popBackStack() }) }
             composable("quiet") { QuietScreen(onBack = { nav.popBackStack() }) }
+            composable("agent") { AgentScreen(onBack = { nav.popBackStack() }) }
             composable(
                 "app/{pkg}",
                 arguments = listOf(navArgument("pkg") { type = NavType.StringType }),

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.alram.mail.core.BodyMode
 import com.alram.mail.core.DeliveryMode
+import com.alram.mail.core.Destination
 import com.alram.mail.core.GlobalSettings
 import com.alram.mail.core.QuietHours
 import com.alram.mail.core.QuietPolicy
@@ -27,6 +28,10 @@ data class AppPrefs(
     val keepAlive: Boolean = false,
     val retentionDays: Int = 30,
     val setupSeen: Boolean = false,
+    /** 에이전트 서버 주소 (예: https://alram-agent.xxx.workers.dev). */
+    val agentUrl: String = "",
+    /** 서버에서 이 폰을 구분하는 무작위 ID. 처음 연결할 때 만든다. */
+    val agentDeviceId: String = "",
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -58,6 +63,10 @@ class SettingsRepository(private val context: Context) {
         val keepAlive = booleanPreferencesKey("keepAlive")
         val retention = intPreferencesKey("retentionDays")
         val setupSeen = booleanPreferencesKey("setupSeen")
+        val agentEnabled = booleanPreferencesKey("agentEnabled")
+        val agentDest = stringPreferencesKey("agentDefaultDestination")
+        val agentUrl = stringPreferencesKey("agentUrl")
+        val agentDeviceId = stringPreferencesKey("agentDeviceId")
     }
 
     val prefs: Flow<AppPrefs> = context.dataStore.data.map { read(it) }
@@ -98,6 +107,8 @@ class SettingsRepository(private val context: Context) {
             recipients = p[K.recipients]?.split('\n')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.recipients,
             dailyMailCap = p[K.cap] ?: d.dailyMailCap,
             maxItemsPerMail = p[K.perMail] ?: d.maxItemsPerMail,
+            agentEnabled = p[K.agentEnabled] ?: d.agentEnabled,
+            defaultDestination = enumOr(p[K.agentDest], d.defaultDestination),
         )
         return AppPrefs(
             core = core,
@@ -106,6 +117,8 @@ class SettingsRepository(private val context: Context) {
             keepAlive = p[K.keepAlive] ?: false,
             retentionDays = p[K.retention] ?: 30,
             setupSeen = p[K.setupSeen] ?: false,
+            agentUrl = p[K.agentUrl] ?: "",
+            agentDeviceId = p[K.agentDeviceId] ?: "",
         )
     }
 
@@ -136,6 +149,10 @@ class SettingsRepository(private val context: Context) {
         p[K.keepAlive] = v.keepAlive
         p[K.retention] = v.retentionDays
         p[K.setupSeen] = v.setupSeen
+        p[K.agentEnabled] = c.agentEnabled
+        p[K.agentDest] = c.defaultDestination.name
+        p[K.agentUrl] = v.agentUrl
+        p[K.agentDeviceId] = v.agentDeviceId
     }
 
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =

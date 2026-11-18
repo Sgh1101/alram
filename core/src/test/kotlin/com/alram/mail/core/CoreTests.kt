@@ -294,3 +294,65 @@ class LoopGuardTest {
         assertFalse("com.kakao.talk" in LoopGuard.MAIL_APPS)
     }
 }
+
+class DestinationTest {
+    private val now = at(2026, 10, 5, 12, 0)
+    private val s = GlobalSettings()
+
+    @Test fun `에이전트가 꺼져 있으면 앱 설정과 무관하게 메일로만`() {
+        val rule = AppRule("p", destination = Destination.AGENT)
+        val d = RuleEngine.decide(notif(), rule, s, now, SEOUL) as Decision.Send
+        assertTrue(d.toMail)
+        assertFalse(d.toAgent)
+    }
+
+    @Test fun `에이전트 켜면 기본값과 앱별 설정을 따른다`() {
+        val on = s.copy(agentEnabled = true)
+        val both = RuleEngine.decide(notif(), null, on, now, SEOUL) as Decision.Send
+        assertTrue(both.toMail && both.toAgent)
+
+        val agentOnly = RuleEngine.decide(notif(), AppRule("p", destination = Destination.AGENT), on, now, SEOUL) as Decision.Send
+        assertFalse(agentOnly.toMail)
+        assertTrue(agentOnly.toAgent)
+
+        val mailOnly = RuleEngine.decide(notif(), null, on.copy(defaultDestination = Destination.MAIL), now, SEOUL) as Decision.Send
+        assertTrue(mailOnly.toMail)
+        assertFalse(mailOnly.toAgent)
+    }
+
+    @Test fun `방해금지 버리기여도 에이전트에는 보낸다`() {
+        val quiet = QuietHours(enabled = true, startMinute = 23 * 60, endMinute = 7 * 60, policy = QuietPolicy.DROP)
+        val night = at(2026, 10, 5, 23, 30)
+        val d = RuleEngine.decide(notif(), null, s.copy(quiet = quiet, agentEnabled = true), night, SEOUL) as Decision.Send
+        assertFalse(d.toMail)
+        assertTrue(d.toAgent)
+        assertEquals(Decision.Drop(DropReason.QUIET_DROP),
+            RuleEngine.decide(notif(), null, s.copy(quiet = quiet, agentEnabled = true, defaultDestination = Destination.MAIL), night, SEOUL))
+    }
+
+    @Test fun `키워드 필터는 에이전트에도 적용`() {
+        val rule = AppRule("p", excludeKeywords = listOf("광고"), destination = Destination.AGENT)
+        assertEquals(Decision.Drop(DropReason.EXCLUDED_KEYWORD),
+            RuleEngine.decide(notif(text = "(광고)"), rule, s.copy(agentEnabled = true), now, SEOUL))
+    }
+}
+
+class AgentPayloadTest {
+    @Test fun `JSON 이스케이프와 필드`() {
+        val n = notif(title = "따옴표\"와\\역슬래시", text = "줄\n바꿈\t탭\u0001", postedAt = at(2026, 11, 18, 9, 12))
+        val json = AgentPayload.encode("dev-1", "Galaxy", listOf(AgentItem("dev-1-7", n)), SEOUL, 1000L)
+        assertTrue(json.startsWith("{\"version\":1,\"device\":{\"id\":\"dev-1\",\"name\":\"Galaxy\"},\"sentAt\":1000,\"items\":["))
+        assertTrue(json.contains("\"title\":\"따옴표\\\"와\\\\역슬래시\""))
+        assertTrue(json.contains("\"text\":\"줄\\n바꿈\\t탭\\u0001\""))
+        assertTrue(json.contains("\"postedAtIso\":\"2026-11-18T09:12:00+09:00\""))
+        assertTrue(json.contains("\"package\":\"com.kakao.talk\",\"app\":\"카카오톡\""))
+        assertTrue(json.endsWith("}]}"))
+    }
+
+    @Test fun `빈 목록`() {
+        assertEquals(
+            "{\"version\":1,\"device\":{\"id\":\"d\",\"name\":\"n\"},\"sentAt\":5,\"items\":[]}",
+            AgentPayload.encode("d", "n", emptyList(), SEOUL, 5L),
+        )
+    }
+}

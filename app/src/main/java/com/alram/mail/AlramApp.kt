@@ -15,6 +15,7 @@ class AlramApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.dispatcher.start()
+        container.agent.start()
 
         // 프로세스가 죽어도 15분마다 깨어나 밀린 알림을 확인하는 안전망.
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

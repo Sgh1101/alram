@@ -1,0 +1,19 @@
+name = "alram-agent"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# `npx wrangler d1 create alram` 이 알려 주는 database_id 로 바꿔 주세요.
+[[d1_databases]]
+binding = "DB"
+database_name = "alram"
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+
+[vars]
+# 이 기간(일)보다 오래된 알림은 매일 지운다.
+RETENTION_DAYS = "30"
+
+# 매일 한 번 오래된 알림 정리 (UTC 18:17 = 한국 03:17)
+[triggers]
+crons = ["17 18 * * *"]
+
+# 비밀값은 여기 적지 말고 `npx wrangler secret put INGEST_TOKEN` / `READ_TOKEN` 으로 넣으세요.
