@@ -72,6 +72,14 @@ npm run deploy                           # https://alram-agent.<내계정>.worke
   다 처리한 뒤 `POST /api/new/ack {"consumer":"pickle","up_to":<응답의 cursor>}` 로 확정하세요.
 - `?token=` 은 헤더를 넣을 수 없는 도구를 위한 것입니다. 이 URL 은 비밀번호처럼 다뤄 주세요.
 
+### 에이전트가 여러 개일 때 (예: 피클 + 그록)
+
+- `consumer` 이름을 에이전트마다 다르게 주세요(`pickle`, `grok`). 각자 위치를 따로 기억하므로 서로 알림을 뺏지 않습니다.
+- 토큰도 따로 주려면 READ_TOKEN 에 쉼표로 여러 개를 넣으세요:
+  `npx wrangler secret put READ_TOKEN` → `피클용토큰,그록용토큰`
+  한쪽이 새면 그 토큰만 빼고 다시 넣으면 다른 쪽은 그대로 동작합니다.
+- `mark_handled`(처리 표시)는 모든 에이전트가 함께 봅니다. 새 알림 가져오기(`/api/new`)에는 영향이 없습니다.
+
 ## 에이전트 연결 (MCP)
 
 MCP 주소는 둘 중 편한 것을 쓰면 됩니다.

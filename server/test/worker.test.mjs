@@ -226,6 +226,22 @@ test('MCP get_new_notifications', async () => {
   assert.equal((await tool({ consumer: 'pickle' })).count, 0);
 });
 
+test('READ_TOKEN 여러 개: 에이전트마다 다른 토큰, 위치도 따로', async () => {
+  const { env, call } = setup();
+  const PICKLE = 'pickle-token-0123456789ab';
+  const GROK = 'grok-token-0123456789abcd';
+  env.READ_TOKEN = `${PICKLE}, ${GROK}`;
+  await call('POST', '/ingest', { token: INGEST, body: payload([item('1')]) });
+  const poll = async (tok, consumer) => (await call('GET', `/api/new?consumer=${consumer}&token=${tok}`)).json();
+  assert.equal((await poll(PICKLE, 'pickle')).count, 1);
+  assert.equal((await poll(GROK, 'grok')).count, 1); // pickle 이 가져가도 grok 은 따로 받는다
+  assert.equal((await poll(GROK, 'grok')).count, 0);
+  // 그록 토큰만 빼면 그록만 막힌다
+  env.READ_TOKEN = PICKLE;
+  assert.equal((await call('GET', `/api/new?consumer=grok&token=${GROK}`)).status, 401);
+  assert.equal((await call('GET', `/api/new?consumer=pickle&token=${PICKLE}`)).status, 200);
+});
+
 test('토큰이 설정되지 않으면 아무것도 받지 않는다', async () => {
   const { env, call } = setup();
   env.INGEST_TOKEN = '';

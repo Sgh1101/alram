@@ -106,13 +106,23 @@ async function route(request, env) {
 
 // ───────────────────────────────────────────── 인증
 
-function requireToken(request, expected, alternative = null) {
-  if (!expected || expected.length < 16) {
+/**
+ * [configured] 는 토큰 하나 또는 쉼표로 구분한 여러 개. 에이전트마다 다른 READ_TOKEN 을 주면
+ * 한쪽이 새도 그 토큰만 빼고 다시 넣으면 된다. 16자 미만 토큰은 무시한다.
+ */
+function requireToken(request, configured, alternative = null) {
+  const tokens = String(configured ?? '').split(',').map((t) => t.trim()).filter((t) => t.length >= 16);
+  if (tokens.length === 0) {
     throw new HttpError(500, 'server token is not configured (wrangler secret put ...)');
   }
   const header = request.headers.get('Authorization') || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  const ok = (bearer && safeEqual(bearer, expected)) || (alternative && safeEqual(alternative, expected));
+  // 짧은 회로 없이 전부 비교해서 어떤 토큰이 맞았는지 시간 차로 드러나지 않게 한다.
+  let ok = false;
+  for (const t of tokens) {
+    if (bearer && safeEqual(bearer, t)) ok = true;
+    if (alternative && safeEqual(alternative, t)) ok = true;
+  }
   if (!ok) throw new HttpError(401, 'unauthorized');
 }
 
